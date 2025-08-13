@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Script de instalación automatizada de Arch Linux
 # Uso: ./arch-install-auto.sh /dev/sdX
 # Ejemplo: ./arch-install-auto.sh /dev/sda
 
@@ -69,7 +68,7 @@ mount "$HOME_PARTITION" /mnt/home
 
 log "Instalando base..."
 pacstrap /mnt base linux linux-firmware \
-    base-devel git neovim tmux kmscon w3m imagemagick \
+    base-devel git neovim tmux w3m imagemagick \
     zram-generator ttf-monofur-nerd chafa htop wget curl \
     make gcc gdb cmake pkgconf networkmanager
 
@@ -79,6 +78,8 @@ genfstab -U /mnt >> /mnt/etc/fstab
 log "Configurando sistema..."
 cat > /mnt/configure_system.sh << 'EOF'
 #!/bin/bash
+set -e
+
 ln -sf /usr/share/zoneinfo/America/Lima /etc/localtime
 hwclock --systohc
 
@@ -109,15 +110,6 @@ systemctl enable systemd-zram-setup@zram0
 sed -i 's/^#MAKEFLAGS=.*/MAKEFLAGS="-j$(nproc)"/' /etc/makepkg.conf
 sed -i 's/^CFLAGS=.*/CFLAGS="-march=native -O2 -pipe -fstack-protector-strong -fno-plt"/' /etc/makepkg.conf
 sed -i 's/^CXXFLAGS=.*/CXXFLAGS="${CFLAGS}"/' /etc/makepkg.conf
-
-# kmscon
-systemctl disable getty@tty1
-systemctl enable kmscon@tty1
-mkdir -p /etc/kmscon
-cat > /etc/kmscon/kmscon.conf << 'KMSCON_EOF'
-font-name=Monofur Nerd Font
-font-size=14
-KMSCON_EOF
 
 # Network
 systemctl enable NetworkManager
@@ -181,6 +173,7 @@ echo "- Zona horaria: America/Lima"
 echo "- Locale: es_ES.UTF-8"
 echo "- Bootloader: systemd-boot"
 echo "- NetworkManager habilitado"
+echo "- Nerd Font instalada: ttf-monofur-nerd (para tmux y terminal gráfica)"
 echo
 warn "IMPORTANTE:"
 echo "1. La contraseña de root es 'root' - cámbiala inmediatamente"
