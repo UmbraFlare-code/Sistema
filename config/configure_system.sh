@@ -14,7 +14,8 @@ sudo pacman -Sy --noconfirm \
     unzip \
     wget \
     fontconfig \
-    freetype2
+    freetype2 \
+    ly
 
 # -------------------------------
 # Instalar Nerd Font Monofur
@@ -40,6 +41,37 @@ EOF
 
 # Permitir que el usuario use fbterm sin sudo
 sudo gpasswd -a "$NEW_USER" video
+sudo chmod u+s /usr/bin/fbterm
+
+# -------------------------------
+# Configuración de ly
+# -------------------------------
+sudo tee /etc/ly/config.ini >/dev/null <<EOF
+[general]
+lang = es_ES.UTF-8
+tty = 1
+save_user = true
+save_session = true
+
+[appearance]
+font = Monofur Nerd Font:size=14
+hide_cursor = false
+
+[behavior]
+login_delay = 0
+timeout = 0
+EOF
+
+# Forzar que ly se ejecute dentro de fbterm
+sudo mkdir -p /etc/systemd/system/ly.service.d
+sudo tee /etc/systemd/system/ly.service.d/override.conf >/dev/null <<EOF
+[Service]
+ExecStart=
+ExecStart=/usr/bin/fbterm -s 14 -- /usr/bin/ly
+EOF
+
+sudo systemctl disable getty@tty1
+sudo systemctl enable ly.service
 
 # -------------------------------
 # Instalar vim-plug
@@ -122,5 +154,5 @@ EOF
 # Mensaje final
 # -------------------------------
 echo "✅ Configuración completada."
-echo "Inicia fbterm con: fbterm"
-echo "En fbterm, abre Neovim y ejecuta :PlugInstall para instalar los plugins."
+echo "El sistema iniciará con 'ly' en fbterm y recordará el último usuario."
+echo "Entra a Neovim y ejecuta :PlugInstall para instalar los plugins."
