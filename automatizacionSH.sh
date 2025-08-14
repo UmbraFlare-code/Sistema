@@ -1,18 +1,16 @@
 #!/bin/bash
 set -e
 
-# Uso: ./arch-install-auto.sh /dev/sdX
-# Ejemplo: ./arch-install-auto.sh /dev/sda
+# Uso: ./arch-install-auto.sh /dev/sdX usuario
+# Ejemplo: ./arch-install-auto.sh /dev/sda pepe
 
-# === CONFIGURACIÓN PREVIA ===
-if [ -z "$1" ]; then
-    echo "Uso: $0 /dev/sdX"
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Uso: $0 /dev/sdX nombre_usuario"
     exit 1
 fi
 
 DISK="$1"
-ROOT_PARTITION="${DISK}1"
-HOME_PARTITION="${DISK}2"
+NEW_USER="$2"
 
 # Colores
 RED='\033[0;31m'
@@ -30,53 +28,89 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Confirmar disco
 [ -b "$DISK" ] || { error "El disco $DISK no existe"; exit 1; }
 
-# Confirmación
 warn "ADVERTENCIA: Se borrará TODO en $DISK"
+if [ -d /sys/firmware/efi ]; then
+    echo "Modo detectado: UEFI"
+    echo "Partición EFI: 512MB FAT32"
+else
+    echo "Modo detectado: BIOS Legacy"
+fi
 echo "Partición raíz: 20GB ext4"
 echo "Partición home: resto del espacio"
 read -p "Presiona Enter para continuar o Ctrl+C para cancelar..."
 
-log "Iniciando instalación automatizada de Arch Linux..."
-
-# === PASOS DE INSTALACIÓN ===
 log "Configurando teclado y NTP..."
 loadkeys la-latin1
 timedatectl set-ntp true
 
+# === PARTICIONES ===
 log "Particionando disco..."
 wipefs -af "$DISK"
 sgdisk --zap-all "$DISK"
-sgdisk -n 1:0:+20G -t 1:8300 "$DISK"  # root
-sgdisk -n 2:0:0 -t 2:8300 "$DISK"     # home
+
+if [ -d /sys/firmware/efi ]; then
+    # UEFI
+    sgdisk -n 1:0:+512M -t 1:ef00 "$DISK"   # EFI
+    sgdisk -n 2:0:+20G  -t 2:8300 "$DISK"   # root
+    sgdisk -n 3:0:0     -t 3:8300 "$DISK"   # home
+else
+    # BIOS Legacy
+    sgdisk -n 1:0:+20G  -t 1:8300 "$DISK"   # root
+    sgdisk -n 2:0:0     -t 2:8300 "$DISK"   # home
+fi
+
 partprobe "$DISK"
 sleep 2
 
-# Ajustar para NVMe
 if [[ "$DISK" == *"nvme"* ]]; then
-    ROOT_PARTITION="${DISK}p1"
-    HOME_PARTITION="${DISK}p2"
+    ROOT_PARTITION="${DISK}p2"
+    HOME_PARTITION="${DISK}p3"
+    EFI_PART="${DISK}p1"
+    if [ ! -d /sys/firmware/efi ]; then
+        ROOT_PARTITION="${DISK}p1"
+        HOME_PARTITION="${DISK}p2"
+    fi
+else
+    ROOT_PARTITION="${DISK}2"
+    HOME_PARTITION="${DISK}3"
+    EFI_PART="${DISK}1"
+    if [ ! -d /sys/firmware/efi ]; then
+        ROOT_PARTITION="${DISK}1"
+        HOME_PARTITION="${DISK}2"
+    fi
 fi
 
+# === FORMATEO ===
 log "Formateando..."
+if [ -d /sys/firmware/efi ]; then
+    mkfs.fat -F32 "$EFI_PART"
+fi
 mkfs.ext4 -F "$ROOT_PARTITION"
 mkfs.ext4 -F "$HOME_PARTITION"
 
+# === MONTAJES ===
 log "Montando..."
 mount "$ROOT_PARTITION" /mnt
 mkdir -p /mnt/home
 mount "$HOME_PARTITION" /mnt/home
+if [ -d /sys/firmware/efi ]; then
+    mkdir -p /mnt/boot
+    mount "$EFI_PART" /mnt/boot
+fi
 
+# === INSTALACIÓN BASE ===
 log "Instalando base..."
 pacstrap /mnt base linux linux-firmware \
     base-devel git neovim tmux w3m imagemagick \
     zram-generator ttf-monofur-nerd chafa htop wget curl \
-    make gcc gdb cmake pkgconf networkmanager
+    make gcc gdb cmake pkgconf networkmanager sudo grub efibootmgr os-prober
 
 log "Generando fstab..."
 genfstab -U /mnt >> /mnt/etc/fstab
 
-log "Configurando sistema..."
-cat > /mnt/configure_system.sh << 'EOF'
+# === CONFIGURAR SISTEMA ===
+log "Creando script de configuración dentro del sistema..."
+cat > /mnt/configure_system.sh << EOF
 #!/bin/bash
 set -e
 
@@ -109,51 +143,42 @@ systemctl enable systemd-zram-setup@zram0
 # Compilación optimizada
 sed -i 's/^#MAKEFLAGS=.*/MAKEFLAGS="-j$(nproc)"/' /etc/makepkg.conf
 sed -i 's/^CFLAGS=.*/CFLAGS="-march=native -O2 -pipe -fstack-protector-strong -fno-plt"/' /etc/makepkg.conf
-sed -i 's/^CXXFLAGS=.*/CXXFLAGS="${CFLAGS}"/' /etc/makepkg.conf
+sed -i 's/^CXXFLAGS=.*/CXXFLAGS="\${CFLAGS}"/' /etc/makepkg.conf
 
 # Network
 systemctl enable NetworkManager
 
 # Root password
-echo "Configurando contraseña de root..."
 echo "root:root" | chpasswd
-echo "ADVERTENCIA: La contraseña de root es 'root'. Cámbiala después del primer arranque."
 
-# Crear usuario normal
-echo "Creando usuario normal..."
-read -p "Nombre del usuario: " NEW_USER
-if [ -n "$NEW_USER" ]; then
-    useradd -m -G wheel -s /bin/bash "$NEW_USER"
-    echo "Establece contraseña para $NEW_USER:"
-    passwd "$NEW_USER"
-    
-    # Configurar sudo
-    pacman -S --noconfirm sudo
-    sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-    echo "Usuario $NEW_USER creado con permisos sudo."
-else
-    echo "No se creó usuario adicional. Usa 'root' para el primer arranque."
-fi
+# Crear usuario
+useradd -m -G wheel -s /bin/bash "$NEW_USER"
+echo "$NEW_USER:$NEW_USER" | chpasswd
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-# Bootloader systemd-boot
-bootctl install
-PARTUUID=$(blkid -s PARTUUID -o value $(findmnt -n -o SOURCE /))
-
-mkdir -p /boot/loader/entries
-cat > /boot/loader/loader.conf << 'LOADER_EOF'
+# Gestor de arranque
+if [ -d /sys/firmware/efi ]; then
+    # UEFI
+    bootctl install
+    PARTUUID=\$(blkid -s PARTUUID -o value \$(findmnt -n -o SOURCE /))
+    mkdir -p /boot/loader/entries
+    cat > /boot/loader/loader.conf << 'LOADER_EOF'
 default arch.conf
 timeout 3
 console-mode max
 editor no
 LOADER_EOF
-
-cat > /boot/loader/entries/arch.conf << ENTRY_EOF
+    cat > /boot/loader/entries/arch.conf << ENTRY_EOF
 title   Arch Linux
 linux   /vmlinuz-linux
 initrd  /initramfs-linux.img
-options root=PARTUUID=${PARTUUID} rw
+options root=PARTUUID=\${PARTUUID} rw
 ENTRY_EOF
-
+else
+    # BIOS Legacy
+    grub-install --target=i386-pc "$DISK"
+    grub-mkconfig -o /boot/grub/grub.cfg
+fi
 EOF
 
 arch-chroot /mnt bash /configure_system.sh
@@ -163,21 +188,7 @@ log "Desmontando..."
 umount -R /mnt
 
 log "¡Instalación completada!"
-echo
-echo "Resumen de la instalación:"
-echo "- Disco usado: $DISK"
-echo "- Partición raíz: $ROOT_PARTITION (20GB)"
-echo "- Partición home: $HOME_PARTITION (resto del espacio)"
-echo "- Hostname: archtty"
-echo "- Zona horaria: America/Lima"
-echo "- Locale: es_ES.UTF-8"
-echo "- Bootloader: systemd-boot"
-echo "- NetworkManager habilitado"
-echo "- Nerd Font instalada: ttf-monofur-nerd (para tmux y terminal gráfica)"
-echo
-warn "IMPORTANTE:"
-echo "1. La contraseña de root es 'root' - cámbiala inmediatamente"
-echo "2. El sistema está listo para reiniciar"
-echo
+echo "Usuario creado: $NEW_USER / contraseña: $NEW_USER"
+echo "Root contraseña: root"
 read -p "¿Reiniciar ahora? (y/N) " r
-[[ $r =~ ^[Yy]$ ]] && reboot
+[[ \$r =~ ^[Yy]\$ ]] && reboot
