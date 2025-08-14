@@ -19,7 +19,7 @@ declare -A CONFIG=(
     [ZRAM_ALGORITHM]="zstd"                  # Algoritmo de compresión
     
     # Paquetes adicionales (separados por espacios)
-    [EXTRA_PACKAGES]="firefox libreoffice"   # Paquetes extra a instalar
+    [EXTRA_PACKAGES]="libreoffice"   # Paquetes extra a instalar
 )
 
 # Configuración del repositorio

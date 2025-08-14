@@ -2,79 +2,125 @@
 set -e
 
 NEW_USER="$1"
-DISK="$2"
 
-# Zona horaria y reloj
-ln -sf /usr/share/zoneinfo/America/Lima /etc/localtime
-hwclock --systohc
+# -------------------------------
+# Instalar dependencias
+# -------------------------------
+sudo pacman -Sy --noconfirm \
+    neovim \
+    git \
+    clang \
+    fbterm \
+    unzip \
+    wget \
+    fontconfig \
+    freetype2
 
-# Locale
-echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
-locale-gen
-echo "LANG=es_ES.UTF-8" > /etc/locale.conf
-echo "KEYMAP=la-latin1" > /etc/vconsole.conf
+# -------------------------------
+# Instalar Nerd Font Monofur
+# -------------------------------
+FONT_DIR="/home/$NEW_USER/.local/share/fonts"
+mkdir -p "$FONT_DIR"
+wget -O "$FONT_DIR/MonofurNerdFontMono-Regular.ttf" \
+  "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Monofur/Regular/complete/Monofur%20Nerd%20Font%20Mono%20Regular.ttf"
+fc-cache -fv
 
-# Hostname
-echo "archtty" > /etc/hostname
-cat > /etc/hosts <<EOF
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   archtty.localdomain archtty
+# -------------------------------
+# Configuración de fbterm
+# -------------------------------
+sudo tee /etc/fbtermrc >/dev/null <<EOF
+font-names=Monofur Nerd Font Mono
+font-size=16
+font-width=1
+font-height=2
+term=fbterm
+cursor-shape=1
+cursor-underline=0
 EOF
 
-# ZRAM
-mkdir -p /etc/systemd/zram-generator.conf.d
-cat > /etc/systemd/zram-generator.conf <<EOF
-[zram0]
-zram-size = 1024
-compression-algorithm = zstd
+# Permitir que el usuario use fbterm sin sudo
+sudo gpasswd -a "$NEW_USER" video
+
+# -------------------------------
+# Instalar vim-plug
+# -------------------------------
+sudo -u "$NEW_USER" sh -c 'curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs \
+     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+
+# -------------------------------
+# Configuración de Neovim
+# -------------------------------
+sudo -u "$NEW_USER" tee /home/$NEW_USER/.config/nvim/init.vim >/dev/null <<'EOF'
+" ================================
+" Configuración Neovim para C++
+" ================================
+set nocompatible
+set encoding=utf-8
+set number
+set relativenumber
+set tabstop=4
+set shiftwidth=4
+set expandtab
+set cursorline
+set mouse=a
+syntax on
+filetype plugin indent on
+
+" ------------------------
+" Plugins con vim-plug
+" ------------------------
+call plug#begin('~/.vim/plugged')
+
+" Explorador de archivos
+Plug 'preservim/nerdtree'
+Plug 'ryanoasis/vim-devicons'
+
+" Barra de estado
+Plug 'vim-airline/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+
+" Autocompletado inteligente
+Plug 'neoclide/coc.nvim', {'branch': 'release'}
+
+call plug#end()
+
+" ------------------------
+" Configuración NERDTree
+" ------------------------
+nnoremap <leader>e :NERDTreeToggle<CR>
+autocmd VimEnter * NERDTree | wincmd p
+
+" ------------------------
+" Configuración de ventanas
+" ------------------------
+nnoremap <leader>v :vsplit<CR>
+nnoremap <leader>s :split<CR>
+nnoremap <C-h> <C-w>h
+nnoremap <C-l> <C-w>l
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <A-=> :vertical resize +5<CR>
+nnoremap <A--> :vertical resize -5<CR>
+
+" ------------------------
+" COC solo para C++
+" ------------------------
+autocmd FileType cpp,hpp,h,cxx,hxx :CocInstall -sync coc-clangd | q
+autocmd BufReadPost *.cpp,*.hpp,*.h,*.c,*.cxx,*.hxx :silent! CocEnable
+
+" Atajos C++
+nmap <leader>d <Plug>(coc-definition)
+nmap <leader>r <Plug>(coc-references)
+nmap <leader>rn <Plug>(coc-rename)
+nmap <leader>f <Plug>(coc-format)
+
+" Mejoras visuales para Airline
+let g:airline_powerline_fonts = 1
 EOF
-systemctl enable systemd-zram-setup@zram0
 
-# Optimizar compilación
-sed -i "s|^#MAKEFLAGS=.*|MAKEFLAGS=\"-j$(nproc)\"|" /etc/makepkg.conf
-sed -i 's|^CFLAGS=.*|CFLAGS="-march=native -O2 -pipe -fstack-protector-strong -fno-plt"|' /etc/makepkg.conf
-sed -i 's|^CXXFLAGS=.*|CXXFLAGS="${CFLAGS}"|' /etc/makepkg.conf
-
-# Network
-systemctl enable NetworkManager
-
-# Root password
-echo "root:root" | chpasswd
-
-# Usuario
-useradd -m -G wheel -s /bin/bash "$NEW_USER"
-echo "$NEW_USER:$NEW_USER" | chpasswd
-sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-
-# Copiar configuración de tmux
-install -Dm644 /root/tmux.conf /home/$NEW_USER/.tmux.conf
-
-# Copiar configuración de Neovim
-install -d -m 755 /home/$NEW_USER/.config/nvim
-install -Dm644 /root/init.vim /home/$NEW_USER/.config/nvim/init.vim
-
-# Cambiar permisos para el usuario
-chown -R $NEW_USER:$NEW_USER /home/$NEW_USER/.tmux.conf /home/$NEW_USER/.config
-
-# Bootloader
-if [ -d /sys/firmware/efi ]; then
-    bootctl install
-    PARTUUID=$(blkid -s PARTUUID -o value $(findmnt -n -o SOURCE /))
-    mkdir -p /boot/loader/entries
-    cat > /boot/loader/loader.conf <<EOF
-default arch.conf
-timeout 3
-console-mode max
-editor no
-EOF
-    cat > /boot/loader/entries/arch.conf <<EOF
-title   Arch Linux
-linux   /vmlinuz-linux
-initrd  /initramfs-linux.img
-options root=PARTUUID=${PARTUUID} rw
-EOF
-else
-    grub-install --target=i386-pc "$DISK"
-    grub-mkconfig -o /boot/grub/grub.cfg
-fi
+# -------------------------------
+# Mensaje final
+# -------------------------------
+echo "✅ Configuración completada."
+echo "Inicia fbterm con: fbterm"
+echo "En fbterm, abre Neovim y ejecuta :PlugInstall para instalar los plugins."
