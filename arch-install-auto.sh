@@ -19,7 +19,7 @@ declare -A CONFIG=(
     [ZRAM_ALGORITHM]="zstd"                  # Algoritmo de compresión
     
     # Paquetes adicionales (separados por espacios)
-    [EXTRA_PACKAGES]="libreoffice"   # Paquetes extra a instalar
+    [EXTRA_PACKAGES]="git"   # Paquetes extra a instalar
 )
 
 # Configuración del repositorio
@@ -596,10 +596,6 @@ main() {
     # Configurar trap para limpiar en caso de error o interrupción
     trap cleanup EXIT INT TERM
     
-    # Descargar archivos de configuración
-    if ! download_config_files; then
-        exit 1
-    fi
     
     # Proceso de instalación
     partition_disk "$disk"
