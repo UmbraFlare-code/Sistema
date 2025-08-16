@@ -19,12 +19,17 @@ declare -A CONFIG=(
     [ZRAM_ALGORITHM]="zstd"                  # Algoritmo de compresión
     
     # Paquetes adicionales (separados por espacios)
-    [EXTRA_PACKAGES]="git"   # Paquetes extra a instalar
+    [EXTRA_PACKAGES]="firefox libreoffice"   # Paquetes extra a instalar
 )
 
 # Configuración del repositorio
 REPO_URL="https://raw.githubusercontent.com/umbraflare-code/sistema/master"
 REQUIRED_FILES=("configure_system.sh" "init.vim" "tmux.conf")
+
+# Variables globales para particiones
+EFI=""
+ROOT=""
+HOME=""
 
 # Colores para output
 RED='\033[0;31m'
@@ -200,36 +205,46 @@ download_config_files() {
     info "Verificando archivos de configuración..."
     
     if [ ! -d "config" ]; then
-        log "Creando directorio config y descargando archivos..."
+        log "Creando directorio config..."
         mkdir -p config
-        
-        for file in "${REQUIRED_FILES[@]}"; do
+    fi
+    
+    # Verificar archivos locales primero
+    local missing_files=()
+    for file in "${REQUIRED_FILES[@]}"; do
+        if [ ! -f "config/$file" ]; then
+            missing_files+=("$file")
+        fi
+    done
+    
+    # Si hay archivos faltantes, intentar descargar
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        log "Descargando archivos de configuración faltantes..."
+        for file in "${missing_files[@]}"; do
             log "Descargando $file..."
             local url="${REPO_URL}/config/$file"
             
             if ! curl -fsSL -o "config/$file" "$url"; then
-                error "No se pudo descargar $file desde $url"
-                error "Verifica tu conexión a internet y que el repositorio sea accesible"
-                rm -rf config
-                return 1
-            fi
-        done
-        
-        chmod +x config/configure_system.sh
-        log "Archivos de configuración descargados correctamente"
-    else
-        log "Usando archivos de configuración existentes"
-        
-        # Verificar que todos los archivos existan
-        for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "config/$file" ]; then
-                error "Archivo config/$file no encontrado"
-                error "La carpeta config está incompleta. Elimínala y ejecuta nuevamente el script"
+                warn "No se pudo descargar $file desde $url"
+                warn "Asegúrate de tener los archivos de configuración en el directorio 'config/'"
                 return 1
             fi
         done
     fi
     
+    # Hacer ejecutable el script de configuración
+    chmod +x config/configure_system.sh 2>/dev/null || true
+    
+    # Verificar que todos los archivos existen
+    for file in "${REQUIRED_FILES[@]}"; do
+        if [ ! -f "config/$file" ]; then
+            error "Archivo config/$file no encontrado"
+            error "Archivos requeridos: ${REQUIRED_FILES[*]}"
+            return 1
+        fi
+    done
+    
+    log "Archivos de configuración verificados correctamente"
     return 0
 }
 
@@ -318,7 +333,7 @@ partition_disk() {
     partprobe "$disk" 2>/dev/null || true
     sleep 3
     
-    # Definir variables de particiones
+    # Definir variables de particiones globales
     if [[ "$disk" == *"nvme"* ]] || [[ "$disk" == *"mmcblk"* ]]; then
         if [ -d /sys/firmware/efi ]; then
             EFI="${disk}p1"
@@ -443,12 +458,12 @@ configure_system() {
     
     # Aplicar configuraciones personalizadas al script de configuración
     log "Aplicando configuraciones personalizadas..."
-    sed -i "s/archtty/${CONFIG[HOSTNAME]}/g" /mnt/root/configure_system.sh
-    sed -i "s|America/Lima|${CONFIG[TIMEZONE]}|g" /mnt/root/configure_system.sh
-    sed -i "s/es_ES.UTF-8/${CONFIG[LOCALE]}/g" /mnt/root/configure_system.sh
-    sed -i "s/la-latin1/${CONFIG[KEYMAP]}/g" /mnt/root/configure_system.sh
-    sed -i "s/zram-size = 1024/zram-size = ${CONFIG[ZRAM_SIZE]}/g" /mnt/root/configure_system.sh
-    sed -i "s/compression-algorithm = zstd/compression-algorithm = ${CONFIG[ZRAM_ALGORITHM]}/g" /mnt/root/configure_system.sh
+    sed -i "s/{{HOSTNAME}}/${CONFIG[HOSTNAME]}/g" /mnt/root/configure_system.sh
+    sed -i "s|{{TIMEZONE}}|${CONFIG[TIMEZONE]}|g" /mnt/root/configure_system.sh
+    sed -i "s/{{LOCALE}}/${CONFIG[LOCALE]}/g" /mnt/root/configure_system.sh
+    sed -i "s/{{KEYMAP}}/${CONFIG[KEYMAP]}/g" /mnt/root/configure_system.sh
+    sed -i "s/{{ZRAM_SIZE}}/${CONFIG[ZRAM_SIZE]}/g" /mnt/root/configure_system.sh
+    sed -i "s/{{ZRAM_ALGORITHM}}/${CONFIG[ZRAM_ALGORITHM]}/g" /mnt/root/configure_system.sh
     
     # Ejecutar configuración dentro de chroot
     log "Ejecutando configuración del sistema..."
@@ -470,37 +485,11 @@ cleanup() {
         fi
     fi
     
-    # Cerrar dispositivos dm-crypt si existen
-    if command -v cryptsetup &>/dev/null; then
-        for mapper in /dev/mapper/*; do
-            if [[ "$mapper" != "/dev/mapper/control" ]] && [ -b "$mapper" ]; then
-                local name=$(basename "$mapper")
-                if cryptsetup status "$name" &>/dev/null; then
-                    log "Cerrando dispositivo cifrado: $name"
-                    cryptsetup close "$name" 2>/dev/null || true
-                fi
-            fi
-        done
-    fi
-    
-    # Desactivar RAID si existe
-    if command -v mdadm &>/dev/null; then
-        for md in /dev/md*; do
-            if [ -b "$md" ]; then
-                log "Desactivando RAID: $md"
-                mdadm --stop "$md" 2>/dev/null || true
-            fi
-        done
-    fi
-    
-    # Desactivar LVM si existe
-    if command -v vgchange &>/dev/null; then
-        log "Desactivando volúmenes LVM..."
-        vgchange -an 2>/dev/null || true
-    fi
-    
     if [ $exit_code -ne 0 ]; then
-        error "Script terminado con errores. Limpieza completada."
+        error "La instalación falló. Revisa los mensajes de error anteriores."
+        error "Para reintentar:"
+        error "  1. Ejecuta 'umount -R /mnt' si es necesario"
+        error "  2. Ejecuta el script nuevamente"
     fi
     
     exit $exit_code
@@ -508,10 +497,13 @@ cleanup() {
 
 # Función principal
 main() {
-    local disk="/dev/sda"
-    local username="tmuxuser" 
+    local disk=""
+    local username=""
     local check_only=false
     local verbose=false
+    
+    # Capturar señales para limpiar adecuadamente
+    trap cleanup EXIT INT TERM
     
     # Procesar argumentos
     while [[ $# -gt 0 ]]; do
@@ -531,7 +523,7 @@ main() {
                 ;;
             -*)
                 error "Opción desconocida: $1"
-                echo "Usa -h para ver la ayuda"
+                show_help
                 exit 1
                 ;;
             *)
@@ -549,22 +541,31 @@ main() {
         esac
     done
     
-    # Verificar argumentos mínimos
+    # Verificar que se proporcionó el disco
     if [ -z "$disk" ]; then
         error "Debes especificar un disco"
         show_help
         exit 1
     fi
     
+    # Banner de inicio
+    clear
+    echo -e "${BLUE}"
+    echo "=============================================="
+    echo "    INSTALADOR AUTOMATIZADO DE ARCH LINUX    "
+    echo "=============================================="
+    echo -e "${NC}"
+    echo
+    
     # Verificar requisitos
     if ! check_requirements; then
-        error "Faltan requisitos del sistema"
+        error "Fallos en verificación de requisitos. Corrige los errores y reintenta."
         exit 1
     fi
     
-    # Si solo queremos verificar, salir aquí
-    if [ "$check_only" = true ]; then
-        log "Verificación completada exitosamente"
+    # Si solo es verificación, salir aquí
+    if [ "$check_only" ]; then
+        log "Verificación de requisitos completada exitosamente"
         exit 0
     fi
     
@@ -573,46 +574,95 @@ main() {
         exit 1
     fi
     
-    # Obtener nombre de usuario
+    # Obtener username si no fue proporcionado
     username=$(get_username "$username")
     
-    # Configurar teclado y hora
-    loadkeys "${CONFIG[KEYMAP]}"
-    timedatectl set-ntp true
+    # Descargar archivos de configuración
+    if ! download_config_files; then
+        error "Error con archivos de configuración"
+        error "Asegúrate de tener los archivos en el directorio 'config/'"
+        exit 1
+    fi
     
-    # Mostrar información del disco y configuración
+    # Mostrar información del sistema
     show_disk_info "$disk"
     show_configuration
     
-    warn "ADVERTENCIA: Se borrará TODO el contenido de $disk"
+    # Confirmación final
+    warn "ADVERTENCIA: Esta operación BORRARÁ TODOS LOS DATOS en $disk"
     warn "Usuario a crear: $username"
+    warn "Configuraciones aplicadas como se muestran arriba"
     echo
-    read -p "¿Continuar con la instalación? (escriba 'SI' para confirmar): " -r
-    if [[ "$REPLY" != "SI" ]]; then
+    read -p "¿Continuar con la instalación? (sí para confirmar): " -r
+    if [[ ! "$REPLY" =~ ^(sí|si|Sí|SI|yes|YES|y|Y)$ ]]; then
         log "Instalación cancelada por el usuario"
         exit 0
     fi
     
-    # Configurar trap para limpiar en caso de error o interrupción
-    trap cleanup EXIT INT TERM
+    echo
+    log "Iniciando instalación automatizada de Arch Linux..."
+    log "Tiempo estimado: 15-30 minutos dependiendo de la conexión a internet"
+    echo
     
+    # Sincronizar reloj del sistema
+    log "Sincronizando reloj del sistema..."
+    timedatectl set-ntp true
     
     # Proceso de instalación
-    partition_disk "$disk"
-    format_partitions
-    mount_partitions
-    install_base_system
-    configure_system "$username" "$disk"
+    partition_disk "$disk" || { error "Error particionando disco"; exit 1; }
+    format_partitions || { error "Error formateando particiones"; exit 1; }
+    mount_partitions || { error "Error montando particiones"; exit 1; }
+    install_base_system || { error "Error instalando sistema base"; exit 1; }
+    configure_system "$username" "$disk" || { error "Error configurando sistema"; exit 1; }
     
-    # Limpiar
-    umount -R /mnt
+    # Desmontaje final
+    log "Desmontando sistema de archivos..."
+    umount -R /mnt 2>/dev/null || {
+        warn "Desmontaje falló, pero la instalación parece completada"
+    }
     
-    log "¡Instalación de Arch Linux completada exitosamente!"
-    log "Puedes reiniciar el sistema ahora"
+    # Mensaje de finalización
+    echo
+    echo -e "${GREEN}"
+    echo "=============================================="
+    echo "    ¡INSTALACIÓN COMPLETADA EXITOSAMENTE!    "
+    echo "=============================================="
+    echo -e "${NC}"
+    echo
+    log "Configuración del sistema:"
+    log "  • Usuario: $username (contraseña: $username)"
+    log "  • Root: contraseña 'root'"
+    log "  • Hostname: ${CONFIG[HOSTNAME]}"
+    log "  • Entorno: tmux + Neovim configurado para programación"
+    log "  • ZRAM activado (${CONFIG[ZRAM_SIZE]}MB)"
+    log "  • Bootloader instalado"
+    echo
+    log "Para continuar:"
+    log "  1. Retira el USB de instalación"
+    log "  2. Reinicia el sistema: reboot"
+    log "  3. Inicia sesión con tu usuario"
+    echo
+    log "Comandos útiles para desarrollo:"
+    log "  • nvim archivo.c    # Editor con plantillas"
+    log "  • F5 en nvim        # Compilar y ejecutar C"
+    log "  • F6 en nvim        # Compilar y ejecutar C++"
+    log "  • tmux              # Multiplexor de terminal"
+    log "  • htop              # Monitor de recursos"
+    echo
+    warn "RECORDATORIO: Cambia las contraseñas por defecto después del primer inicio"
     
-    # Desactivar trap
+    # Desactivar trap de limpieza ya que todo salió bien
     trap - EXIT
+    
+    return 0
 }
 
-# Ejecutar función principal con todos los argumentos
+# Verificar que se ejecuta como root
+if [ "$EUID" -ne 0 ]; then
+    error "Este script debe ejecutarse como root"
+    error "Usa: sudo $0 [opciones] disco [usuario]"
+    exit 1
+fi
+
+# Ejecutar función principal
 main "$@"
