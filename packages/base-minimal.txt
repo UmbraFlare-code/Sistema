@@ -1,0 +1,36 @@
+# KERNEL: linux-lts recomendado para hardware modesto
+base 
+linux-lts 
+linux-lts-headers 
+linux-firmware
+networkmanager
+sudo
+git
+gcc 
+make
+
+# Development + Nvim Tree
+neovim
+tmux
+gdb
+
+# Plugin manager y dependencias mínimas
+wget 
+curl 
+unzip
+
+# X11 Absolute Minimum
+xorg-server
+xorg-xinit
+xf86-video-intel
+xf86-input-libinput
+xorg-xset
+xorg-xsetroot
+
+# Herramientas de desarrollo
+tree
+htop
+ncdu
+ripgrep
+fd
+bash-completion
