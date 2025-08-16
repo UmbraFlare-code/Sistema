@@ -104,8 +104,8 @@ BASE_PACKAGES=(
 )
 
 echo "📦 Instalando paquetes base..."
-# Sin documentación para ahorrar espacio
-echo 'NoExtract   = usr/share/man/* usr/share/doc/*' >> /etc/pacman.conf
+# Sin documentación para ahorrar espacio (en el sistema instalado)
+echo 'NoExtract   = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
 
 pacstrap $MOUNT_POINT "${BASE_PACKAGES[@]}"
 
@@ -113,6 +113,8 @@ pacstrap $MOUNT_POINT "${BASE_PACKAGES[@]}"
 echo "⚙️ Configurando sistema base..."
 
 # Locale
+echo "en_US.UTF-8 UTF-8" > $MOUNT_POINT/etc/locale.gen
+arch-chroot $MOUNT_POINT locale-gen
 echo "LANG=en_US.UTF-8" > $MOUNT_POINT/etc/locale.conf
 echo "KEYMAP=us" > $MOUNT_POINT/etc/vconsole.conf
 
@@ -124,7 +126,7 @@ genfstab -U $MOUNT_POINT >> $MOUNT_POINT/etc/fstab
 
 # Usuario
 arch-chroot $MOUNT_POINT useradd -m -G wheel -s /bin/bash $USERNAME
-echo "�� Configurando contraseñas..."
+echo "🔐 Configurando contraseñas..."
 echo "root:$ROOT_PASSWORD" | arch-chroot $MOUNT_POINT chpasswd
 echo "$USERNAME:$USER_PASSWORD" | arch-chroot $MOUNT_POINT chpasswd
 echo "$USERNAME ALL=(ALL) ALL" >> $MOUNT_POINT/etc/sudoers
@@ -154,7 +156,7 @@ kernel.sched_autogroup_enabled=0
 net.core.netdev_max_backlog=1000
 EOF
 
-# Configuración makepkg optimizada
+# Configuración makepkg optimizada (en el sistema instalado)
 echo "🔧 Configurando makepkg..."
 cat > $MOUNT_POINT/etc/makepkg.conf << EOF
 # Optimizaciones para Celeron
@@ -180,9 +182,13 @@ arch-chroot $MOUNT_POINT systemctl disable systemd-resolved
 arch-chroot $MOUNT_POINT systemctl disable systemd-timesyncd
 
 # Habilitar servicios críticos
-echo "✅ Habilitando servicios críticos..."
+echo "✅ Habilitando servicios críticos..."echo "DEBUG: DISK=$DISK"
+echo "DEBUG: USERNAME=$USERNAME" 
+echo "DEBUG: MOUNT_POINT=$MOUNT_POINT"
 arch-chroot $MOUNT_POINT systemctl enable NetworkManager
-arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0
+arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0echo "DEBUG: DISK=$DISK"
+echo "DEBUG: USERNAME=$USERNAME" 
+echo "DEBUG: MOUNT_POINT=$MOUNT_POINT"
 
 # Configuración bash optimizada
 echo "🐚 Configurando bash..."
