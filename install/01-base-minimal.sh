@@ -103,9 +103,11 @@ BASE_PACKAGES=(
     bash-completion
 )
 
-echo "📦 Instalando paquetes base..."
-# Sin documentación para ahorrar espacio (en el sistema instalado)
-echo 'NoExtract   = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
+echo ">> Instalando paquetes base..."
+# Configurar pacman para no extraer documentación
+mkdir -p $MOUNT_POINT/etc
+echo '[options]' > $MOUNT_POINT/etc/pacman.conf
+echo 'NoExtract = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
 
 pacstrap $MOUNT_POINT "${BASE_PACKAGES[@]}"
 
