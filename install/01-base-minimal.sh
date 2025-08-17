@@ -2,66 +2,7 @@
 # Instalación base ultra-mínima para Celeron 4GB
 # Uso: ./01-base-minimal.sh /dev/sda username
 
-# Configuración de timeout global (5 minutos)
-TIMEOUT=300
-
-# Función de logging
-log() {
-    echo "[$(date '+%Y-%m-%d %H:# Habilitar servicios críticos
-log "Habilitando servicios críticos..."
-log "DEBUG: DISK=$DISK"
-log "DEBUG: USERNAME=$USERNAME" 
-log "DEBUG: MOUNT_POINT=$MOUNT_POINT"
-
-# Habilitar NetworkManager con reintentos
-if ! run_with_retry "arch-chroot $MOUNT_POINT systemctl enable NetworkManager" 3 60; then
-    log "ERROR: No se pudo habilitar NetworkManager"
-    exit 1
-fi
-
-# Habilitar ZRAM con reintentos
-if ! run_with_retry "arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0" 3 60; then
-    log "ERROR: No se pudo habilitar ZRAM"
-    exit 1
-fi)] $1"
-}
-
-# Función para ejecutar comandos con timeout y reintentos
-run_with_retry() {
-    local cmd="$1"
-    local retries=${2:-3}
-    local timeout=${3:-$TIMEOUT}
-    local count=0
-    
-    while [ $count -lt $retries ]; do
-        log "Ejecutando: $cmd (intento $((count+1))/$retries)"
-        timeout $timeout bash -c "$cmd"
-        if [ $? -eq 0 ]; then
-            log "Comando exitoso"
-            return 0
-        fi
-        count=$((count+1))
-        log "Comando falló, reintentando..."
-        sleep 5
-    done
-    log "ERROR: El comando falló después de $retries intentos"
-    return 1
-}
-
-# Función para verificar si un comando existe
-check_command() {
-    command -v "$1" >/dev/null 2>&1 || { log "ERROR: $1 no está instalado"; exit 1; }
-}
-
-# Verificar comandos necesarios
-check_command arch-chroot
-check_command pacstrap
-check_command parted
-
 set -e
-
-# Crear archivo de log
-exec 1> >(tee "install_log_$(date '+%Y%m%d_%H%M%S').txt") 2>&1
 
 # Variables
 DISK=${1:-/dev/sda}
