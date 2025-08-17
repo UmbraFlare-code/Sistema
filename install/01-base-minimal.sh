@@ -184,11 +184,20 @@ arch-chroot $MOUNT_POINT systemctl disable systemd-resolved
 arch-chroot $MOUNT_POINT systemctl disable systemd-timesyncd
 
 # Habilitar servicios críticos
-echo "✅ Habilitando servicios críticos..."echo "DEBUG: DISK=$DISK"
-echo "DEBUG: USERNAME=$USERNAME" 
-echo "DEBUG: MOUNT_POINT=$MOUNT_POINT"
+echo ">> Habilitando servicios críticos..."
+echo "DEBUG: Variables actuales:"
+echo "DISK=$DISK"
+echo "USERNAME=$USERNAME" 
+echo "MOUNT_POINT=$MOUNT_POINT"
+
+echo "Presiona ENTER para continuar con NetworkManager..."
+read
+
+# Habilitar NetworkManager
 arch-chroot $MOUNT_POINT systemctl enable NetworkManager
-arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0echo
+
+# Habilitar ZRAM
+arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0
 
 # Configuración bash optimizada
 echo "🐚 Configurando bash..."
