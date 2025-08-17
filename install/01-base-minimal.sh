@@ -87,108 +87,77 @@ else
     mount $ROOT_PARTITION $MOUNT_POINT
 fi
 
-# Paquetes críticos solamente
-BASE_PACKAGES=(
-    base 
-    linux-lts 
-    linux-lts-headers 
-    linux-firmware
-    networkmanager
-    sudo
-    gcc 
-    make 
-    git 
-    neovim 
-    tmux
-    bash-completion
-)
-
-echo ">> Instalando paquetes base..."
 # Configurar pacman para no extraer documentación
 mkdir -p $MOUNT_POINT/etc
 echo '[options]' > $MOUNT_POINT/etc/pacman.conf
 echo 'NoExtract = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
 
-# Configurar pacman para ser más tolerante con conexiones lentas
-echo 'ParallelDownloads = 1' >> $MOUNT_POINT/etc/pacman.conf
-echo 'Timeout = 300' >> $MOUNT_POINT/etc/pacman.conf
-echo 'ConnectTimeout = 60' >> $MOUNT_POINT/etc/pacman.conf
-
-# Función para instalar paquetes con reintentos
-install_packages_with_retry() {
+# Función para instalar un paquete individual con reintentos
+install_package_with_retry() {
+    local package=$1
     local max_attempts=5
     local attempt=1
     
+    echo "📦 Instalando: $package"
+    
     while [ $attempt -le $max_attempts ]; do
-        echo ">> Intento $attempt de $max_attempts - Instalando paquetes base..."
+        echo "   Intento $attempt/$max_attempts..."
         
-        if pacstrap --needed $MOUNT_POINT "${BASE_PACKAGES[@]}"; then
-            echo "✅ Paquetes instalados exitosamente en el intento $attempt"
+        if pacstrap $MOUNT_POINT "$package"; then
+            echo "   ✅ $package instalado exitosamente"
             return 0
         else
-            echo "❌ Error en el intento $attempt"
+            echo "   ❌ Error en intento $attempt"
             if [ $attempt -lt $max_attempts ]; then
-                echo "🔄 Esperando 30 segundos antes del siguiente intento..."
-                sleep 30
-                echo "🔄 Limpiando cache de pacman..."
+                echo "   🔄 Esperando 15 segundos antes del siguiente intento..."
+                sleep 15
+                echo "   🧹 Limpiando cache..."
                 pacman -Sc --noconfirm || true
             fi
         fi
         attempt=$((attempt + 1))
     done
     
-    echo "❌ Error: No se pudieron instalar los paquetes después de $max_attempts intentos"
+    echo "   ❌ Error: No se pudo instalar $package después de $max_attempts intentos"
     return 1
 }
 
-# Instalar paquetes con reintentos
-if ! install_packages_with_retry; then
-    echo "⚠️ Instalación masiva falló, intentando instalar paquetes individualmente..."
-    
-    # Función para instalar paquetes individuales con reintentos
-    install_single_package() {
-        local package=$1
-        local max_attempts=3
-        local attempt=1
-        
-        while [ $attempt -le $max_attempts ]; do
-            echo ">> Instalando $package (intento $attempt/$max_attempts)..."
-            
-            if pacstrap --needed $MOUNT_POINT "$package"; then
-                echo "✅ $package instalado exitosamente"
-                return 0
-            else
-                echo "❌ Error instalando $package (intento $attempt)"
-                if [ $attempt -lt $max_attempts ]; then
-                    echo "🔄 Esperando 20 segundos..."
-                    sleep 20
-                fi
-            fi
-            attempt=$((attempt + 1))
-        done
-        
-        echo "❌ Error: No se pudo instalar $package después de $max_attempts intentos"
-        return 1
-    }
-    
-    # Instalar paquetes críticos uno por uno
-    critical_packages=("base" "linux-lts" "linux-firmware" "networkmanager")
-    
-    for package in "${critical_packages[@]}"; do
-        if ! install_single_package "$package"; then
-            echo "❌ Error crítico: No se pudo instalar $package"
-            echo "💡 Sugerencia: Verifica tu conexión a internet y ejecuta el script nuevamente"
-            exit 1
-        fi
-    done
-    
-    # Instalar paquetes no críticos
-    non_critical_packages=("linux-lts-headers" "sudo" "gcc" "make" "git" "neovim" "tmux" "bash-completion")
-    
-    for package in "${non_critical_packages[@]}"; do
-        install_single_package "$package" || echo "⚠️ Advertencia: $package no se pudo instalar, continuando..."
-    done
-fi
+# Instalación recursiva de paquetes uno por uno
+echo "🚀 Iniciando instalación recursiva de paquetes..."
+
+# Paquetes críticos (obligatorios)
+critical_packages=("base" "linux-lts" "linux-firmware" "networkmanager")
+echo "📋 Paquetes críticos: ${critical_packages[*]}"
+
+for package in "${critical_packages[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "❌ Error crítico: No se pudo instalar $package"
+        echo "💡 El sistema no puede funcionar sin este paquete"
+        exit 1
+    fi
+done
+
+# Paquetes importantes (continuar aunque fallen algunos)
+important_packages=("linux-lts-headers" "sudo" "gcc" "make")
+echo "📋 Paquetes importantes: ${important_packages[*]}"
+
+for package in "${important_packages[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "⚠️ Advertencia: $package no se pudo instalar, continuando..."
+    fi
+done
+
+# Paquetes opcionales (no críticos)
+optional_packages=("git" "neovim" "tmux" "bash-completion")
+echo "📋 Paquetes opcionales: ${optional_packages[*]}"
+
+for package in "${optional_packages[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "⚠️ Advertencia: $package no se pudo instalar, continuando..."
+    fi
+done
+
+echo "✅ Instalación recursiva completada!"
 
 # Configuración mínima del sistema
 echo "⚙️ Configurando sistema base..."
