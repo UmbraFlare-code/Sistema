@@ -109,7 +109,86 @@ mkdir -p $MOUNT_POINT/etc
 echo '[options]' > $MOUNT_POINT/etc/pacman.conf
 echo 'NoExtract = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
 
-pacstrap $MOUNT_POINT "${BASE_PACKAGES[@]}"
+# Configurar pacman para ser más tolerante con conexiones lentas
+echo 'ParallelDownloads = 1' >> $MOUNT_POINT/etc/pacman.conf
+echo 'Timeout = 300' >> $MOUNT_POINT/etc/pacman.conf
+echo 'ConnectTimeout = 60' >> $MOUNT_POINT/etc/pacman.conf
+
+# Función para instalar paquetes con reintentos
+install_packages_with_retry() {
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo ">> Intento $attempt de $max_attempts - Instalando paquetes base..."
+        
+        if pacstrap --needed $MOUNT_POINT "${BASE_PACKAGES[@]}"; then
+            echo "✅ Paquetes instalados exitosamente en el intento $attempt"
+            return 0
+        else
+            echo "❌ Error en el intento $attempt"
+            if [ $attempt -lt $max_attempts ]; then
+                echo "🔄 Esperando 30 segundos antes del siguiente intento..."
+                sleep 30
+                echo "🔄 Limpiando cache de pacman..."
+                pacman -Sc --noconfirm || true
+            fi
+        fi
+        attempt=$((attempt + 1))
+    done
+    
+    echo "❌ Error: No se pudieron instalar los paquetes después de $max_attempts intentos"
+    return 1
+}
+
+# Instalar paquetes con reintentos
+if ! install_packages_with_retry; then
+    echo "⚠️ Instalación masiva falló, intentando instalar paquetes individualmente..."
+    
+    # Función para instalar paquetes individuales con reintentos
+    install_single_package() {
+        local package=$1
+        local max_attempts=3
+        local attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+            echo ">> Instalando $package (intento $attempt/$max_attempts)..."
+            
+            if pacstrap --needed $MOUNT_POINT "$package"; then
+                echo "✅ $package instalado exitosamente"
+                return 0
+            else
+                echo "❌ Error instalando $package (intento $attempt)"
+                if [ $attempt -lt $max_attempts ]; then
+                    echo "🔄 Esperando 20 segundos..."
+                    sleep 20
+                fi
+            fi
+            attempt=$((attempt + 1))
+        done
+        
+        echo "❌ Error: No se pudo instalar $package después de $max_attempts intentos"
+        return 1
+    }
+    
+    # Instalar paquetes críticos uno por uno
+    critical_packages=("base" "linux-lts" "linux-firmware" "networkmanager")
+    
+    for package in "${critical_packages[@]}"; do
+        if ! install_single_package "$package"; then
+            echo "❌ Error crítico: No se pudo instalar $package"
+            echo "💡 Sugerencia: Verifica tu conexión a internet y ejecuta el script nuevamente"
+            exit 1
+        fi
+    done
+    
+    # Instalar paquetes no críticos
+    non_critical_packages=("linux-lts-headers" "sudo" "gcc" "make" "git" "neovim" "tmux" "bash-completion")
+    
+    for package in "${non_critical_packages[@]}"; do
+        install_single_package "$package" || echo "⚠️ Advertencia: $package no se pudo instalar, continuando..."
+    done
+fi
 
 # Configuración mínima del sistema
 echo "⚙️ Configurando sistema base..."
