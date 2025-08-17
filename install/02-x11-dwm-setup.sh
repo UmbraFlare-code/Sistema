@@ -190,4 +190,4 @@ EOF
 echo "✅ X11 y dwm configurados!"
 echo "📋 Próximos pasos:"
 echo "   1. Ejecutar: ./03-essential-tools.sh"
-echo "   2. Reiniciar y disfrutar del escritorio ultra-minimalista!"
+echo "   2. Reiniciar y disfrutar del escritorio minimalista!"

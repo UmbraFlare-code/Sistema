@@ -196,6 +196,8 @@ read
 # Habilitar NetworkManager
 arch-chroot $MOUNT_POINT systemctl enable NetworkManager
 
+echo "Presiona ENTER para continuar con ZRAM..."
+read
 # Habilitar ZRAM
 arch-chroot $MOUNT_POINT systemctl enable systemd-zram-setup@zram0
 
