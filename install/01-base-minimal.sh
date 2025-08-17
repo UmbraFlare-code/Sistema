@@ -281,6 +281,52 @@ EOF
 # Permisos
 arch-chroot $MOUNT_POINT chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
+# Instalar y configurar GRUB (bootloader)
+echo "🔧 Instalando GRUB bootloader..."
+if ! install_package_with_retry "grub"; then
+    echo "❌ Error: No se pudo instalar GRUB"
+    echo "💡 El sistema no podrá iniciar sin un bootloader"
+    exit 1
+fi
+
+# Instalar efibootmgr para UEFI si es necesario
+if [ -d /sys/firmware/efi/efivars ]; then
+    echo "🔧 Instalando efibootmgr para UEFI..."
+    if ! install_package_with_retry "efibootmgr"; then
+        echo "⚠️ Advertencia: efibootmgr no disponible, continuando..."
+    fi
+fi
+
+# Configurar GRUB
+echo "⚙️ Configurando GRUB..."
+if [ -d /sys/firmware/efi/efivars ]; then
+    # UEFI
+    arch-chroot $MOUNT_POINT grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+else
+    # BIOS
+    arch-chroot $MOUNT_POINT grub-install --target=i386-pc $DISK
+fi
+
+# Generar configuración GRUB optimizada
+echo "📝 Generando configuración GRUB..."
+cat > $MOUNT_POINT/etc/default/grub << EOF
+# Configuración GRUB ultra-minimalista
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=3
+GRUB_DISTRIBUTOR="Arch"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 rd.systemd.show_status=false rd.udev.log_priority=3"
+GRUB_CMDLINE_LINUX=""
+GRUB_DISABLE_OS_PROBER=true
+GRUB_DISABLE_SUBMENU=true
+GRUB_TERMINAL_OUTPUT=console
+GRUB_DISABLE_RECOVERY=true
+EOF
+
+# Generar grub.cfg
+arch-chroot $MOUNT_POINT grub-mkconfig -o /boot/grub/grub.cfg
+
+echo "✅ GRUB instalado y configurado correctamente!"
+
 echo "✅ Instalación base completada!"
 echo "📋 Próximos pasos:"
 echo "   1. Ejecutar: ./02-x11-dwm-setup.sh"
@@ -291,3 +337,5 @@ echo "🔐 Información de acceso:"
 echo "   Usuario: $USERNAME"
 echo "   Contraseña: [La que ingresaste]"
 echo "   Root: [La contraseña que ingresaste]"
+echo ""
+echo "🚀 El sistema ya puede iniciar automáticamente!"
