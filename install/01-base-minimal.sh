@@ -175,7 +175,15 @@ echo "celeron-minimal" > $MOUNT_POINT/etc/hostname
 genfstab -U $MOUNT_POINT >> $MOUNT_POINT/etc/fstab
 
 # Usuario
+echo "👤 Creando usuario: $USERNAME"
 arch-chroot $MOUNT_POINT useradd -m -G wheel -s /bin/bash $USERNAME
+if [ $? -eq 0 ]; then
+    echo "✅ Usuario $USERNAME creado exitosamente"
+else
+    echo "❌ Error: No se pudo crear el usuario $USERNAME"
+    exit 1
+fi
+
 echo "🔐 Configurando contraseñas..."
 echo "root:$ROOT_PASSWORD" | arch-chroot $MOUNT_POINT chpasswd
 echo "$USERNAME:$USER_PASSWORD" | arch-chroot $MOUNT_POINT chpasswd
@@ -271,7 +279,7 @@ HISTCONTROL=ignoreboth
 EOF
 
 # Permisos
-chown $USERNAME:$USERNAME $MOUNT_POINT/home/$USERNAME/.bashrc
+arch-chroot $MOUNT_POINT chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
 echo "✅ Instalación base completada!"
 echo "📋 Próximos pasos:"
