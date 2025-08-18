@@ -278,21 +278,26 @@ for dep in "${BUILD_DEPS[@]}"; do
     fi
 done
 
-# Compilar dwm desde source
+# 🔨 Compilar e instalar dwm minimalista con fallback
 echo "🔨 Compilando dwm minimalista..."
 
 if ! command -v dwm >/dev/null 2>&1; then
     cd /tmp
-    if [ -d "dwm" ]; then
-        rm -rf dwm
+    rm -rf dwm
+
+    echo "🌐 Clonando dwm..."
+    if ! git clone --depth=1 https://git.suckless.org/dwm; then
+        echo "⚠️  El repo oficial falló, probando desde GitHub..."
+        if ! git clone --depth=1 https://github.com/dylanaraps/dwm.git dwm; then
+            echo "❌ Error: no se pudo clonar dwm desde ningún mirror"
+            exit 1
+        fi
     fi
-    
-    # Clonar dwm
-    if git clone --depth=1 https://git.suckless.org/dwm; then
-        cd dwm
-        
-        # Configuración ultra-minimalista
-        cat > config.h << 'EOF'
+
+    cd dwm
+
+    # Configuración ultra-minimalista
+    cat > config.h << 'EOF'
 /* dwm ultra-minimal para Celeron 4GB */
 static const unsigned int borderpx  = 0;
 static const unsigned int snap      = 32;
@@ -345,19 +350,16 @@ static Button buttons[] = {
 };
 EOF
 
-        # Compilar con optimizaciones
-        make clean
-        make -j$(nproc) CFLAGS="-O2 -march=native -mtune=native"
-        make install
-        
-        # Limpiar archivos de compilación
-        cd /
-        rm -rf /tmp/dwm
-        
-        echo "✅ dwm compilado e instalado"
-    else
-        echo "❌ Error: No se pudo clonar dwm"
-    fi
+    # Compilar con optimizaciones
+    make clean
+    make -j$(nproc) CFLAGS="-O2 -march=native -mtune=native"
+    sudo make install
+
+    # Limpiar
+    cd /
+    rm -rf /tmp/dwm
+
+    echo "✅ dwm compilado e instalado"
 else
     echo "✅ dwm ya está instalado"
 fi
