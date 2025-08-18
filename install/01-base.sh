@@ -94,7 +94,25 @@ fi
 # Configurar pacman para no extraer documentación
 mkdir -p $MOUNT_POINT/etc
 echo '[options]' > $MOUNT_POINT/etc/pacman.conf
-echo 'NoExtract = usr/share/man/* usr/share/doc/*' >> $MOUNT_POINT/etc/pacman.conf
+cat > $MOUNT_POINT/etc/pacman.conf << 'EOF'
+[options]
+Architecture = auto
+CheckSpace
+Color
+ParallelDownloads = 3
+SigLevel = Required DatabaseOptional
+LocalFileSigLevel = Optional
+NoExtract = usr/share/man/* usr/share/doc/*
+
+[core]
+Include = /etc/pacman.d/mirrorlist
+
+[extra]
+Include = /etc/pacman.d/mirrorlist
+
+[multilib]
+Include = /etc/pacman.d/mirrorlist
+EOF
 
 # Función para instalar un paquete individual con reintentos
 install_package_with_retry() {

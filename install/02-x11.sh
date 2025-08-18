@@ -240,6 +240,10 @@ X11_PACKAGES=(
     "xf86-input-libinput"
     "xorg-xset"
     "xorg-xsetroot"
+    "libx11"
+    "libxft"
+    "libxinerama"
+    "freetype2"
 )
 
 for package in "${X11_PACKAGES[@]}"; do
