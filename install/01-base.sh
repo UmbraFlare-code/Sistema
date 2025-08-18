@@ -63,6 +63,10 @@ else
     ROOT_PARTITION="${DISK}1"
 fi
 
+# Cargar mapa de teclado
+echo "⌨️  Configurando teclado en la-latin1..."
+loadkeys la-latin1
+
 # Crear particiones
 echo "📦 Creando particiones..."
 if [ -d /sys/firmware/efi/efivars ]; then
