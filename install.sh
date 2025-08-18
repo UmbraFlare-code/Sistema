@@ -78,8 +78,8 @@ echo ""
 
 # Paso 1: Sistema base
 echo -e "${YELLOW}📦 Paso 1/3: Instalando sistema base ultra-mínimo...${NC}"
-chmod +x install/01-base-minimal.sh
-./install/01-base-minimal.sh "$DISK" "$USERNAME"
+chmod +x install/01-base.sh
+./install/01-base.sh "$DISK" "$USERNAME"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Error en la instalación del sistema base${NC}"
@@ -92,15 +92,133 @@ echo ""
 # Preguntar si continuar con los pasos adicionales
 echo -e "${YELLOW}🤔 ¿Deseas continuar con la instalación completa?${NC}"
 echo -e "${BLUE}Opciones:${NC}"
-echo -e "  1. Continuar ahora (ejecutar X11 + dwm + herramientas)"
-echo -e "  2. Continuar después del reinicio (recomendado)"
-echo -e "  3. Solo sistema base (sin entorno gráfico)"
+echo -e "  1. Solo sistema base (recomendado para espacio limitado)"
+echo -e "  2. Continuar después del reinicio (mejor opción)"
+echo -e "  3. Intentar continuar ahora (puede fallar por espacio)"
 echo ""
 read -p "Selecciona una opción (1/2/3): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[1]$ ]]; then
-    # Continuar ahora
+    # Solo sistema base
+    echo -e "${GREEN}✅ Instalación completada (solo sistema base)${NC}"
+    COMPLETE_INSTALLATION=false
+    
+elif [[ $REPLY =~ ^[2]$ ]]; then
+    # Continuar después del reinicio (recomendado)
+    echo -e "${BLUE}📋 Configurando instalación post-reinicio...${NC}"
+    
+    # Copiar repositorio al sistema instalado
+    echo -e "${YELLOW}📁 Copiando repositorio al sistema...${NC}"
+    cp -r . /mnt/home/$USERNAME/sistema-install/
+    chown -R $USERNAME:$USERNAME /mnt/home/$USERNAME/sistema-install/
+    
+    # Crear script de auto-instalación mejorado
+    cat > /mnt/home/$USERNAME/auto-install.sh << 'EOF'
+#!/bin/bash
+# Script de auto-instalación post-reinicio mejorado
+
+set -e
+
+cd ~/sistema-install
+
+echo "🚀 Continuando instalación post-reinicio..."
+echo ""
+
+# Verificar espacio disponible
+AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+echo "💾 Espacio disponible: $((AVAILABLE_SPACE / 1024))MB"
+
+if [ "$AVAILABLE_SPACE" -lt 500000 ]; then
+    echo "⚠️ Advertencia: Espacio limitado detectado"
+    echo "   Se usará instalación ultra-minimalista"
+fi
+
+# Ejecutar X11 y dwm con script optimizado
+echo "🖥️ Configurando X11 y dwm..."
+chmod +x install/02-x11.sh
+sudo ./install/02-x11.sh
+
+if [ $? -ne 0 ]; then
+    echo "❌ Error en la configuración de X11 y dwm"
+    echo "💡 Puedes intentar manualmente más tarde"
+    exit 1
+fi
+
+echo "✅ X11 y dwm configurados"
+echo ""
+
+# Preguntar si instalar herramientas
+echo "🤔 ¿Deseas instalar herramientas esenciales (Neovim, etc.)?"
+echo "💡 Esto requiere espacio adicional (~60MB)"
+read -p "¿Continuar? (s/N): " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Ss]$ ]]; then
+    echo "🛠️ Instalando herramientas esenciales..."
+    chmod +x install/03-tools.sh
+    sudo ./install/03-tools.sh
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ Error en la instalación de herramientas"
+        echo "💡 Puedes instalar manualmente más tarde"
+    else
+        echo "✅ Herramientas esenciales instaladas"
+    fi
+    echo ""
+fi
+
+# Limpiar archivos de instalación
+echo "🧹 Limpiando archivos de instalación..."
+rm -rf ~/sistema-install
+
+echo "🎉 ¡Instalación completada!"
+echo "🚀 El sistema está listo para usar."
+echo ""
+echo "🎯 Para iniciar el entorno gráfico:"
+echo "   - Reiniciar y usar ly display manager"
+echo "   - O ejecutar 'startx' manualmente"
+EOF
+
+    chmod +x /mnt/home/$USERNAME/auto-install.sh
+    chown $USERNAME:$USERNAME /mnt/home/$USERNAME/auto-install.sh
+    
+    # Configurar auto-ejecución en el primer login
+    cat >> /mnt/home/$USERNAME/.bashrc << 'EOF'
+
+# Auto-instalación post-reinicio
+if [ -f ~/auto-install.sh ]; then
+    echo ""
+    echo "🚀 Se detectó script de auto-instalación"
+    echo "💡 Este script instalará X11 + dwm + herramientas"
+    echo "¿Ejecutar ahora? (s/N): "
+    read -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Ss]$ ]]; then
+        ~/auto-install.sh
+    else
+        echo "💡 Puedes ejecutar '~/auto-install.sh' más tarde"
+    fi
+fi
+EOF
+
+    echo -e "${GREEN}✅ Configuración post-reinicio completada${NC}"
+    echo -e "${YELLOW}📝 Después del reinicio, el sistema te preguntará si continuar${NC}"
+    COMPLETE_INSTALLATION=false
+    
+elif [[ $REPLY =~ ^[3]$ ]]; then
+    # Intentar continuar ahora (puede fallar)
+    echo -e "${YELLOW}⚠️ Intentando instalación completa ahora...${NC}"
+    echo -e "${YELLOW}⚠️ Esto puede fallar si no hay suficiente espacio${NC}"
+    
+    # Verificar espacio disponible
+    AVAILABLE_SPACE=$(df /mnt | awk 'NR==2 {print $4}')
+    if [ "$AVAILABLE_SPACE" -lt 500000 ]; then
+        echo -e "${RED}❌ Error: Espacio insuficiente para instalación completa${NC}"
+        echo -e "${YELLOW}💡 Recomendamos usar la opción 2 (post-reinicio)${NC}"
+        exit 1
+    fi
+    
     echo -e "${YELLOW}🖥️ Paso 2/3: Configurando X11 y dwm...${NC}"
     chmod +x install/02-x11-dwm-setup.sh
     ./install/02-x11-dwm-setup.sh
@@ -114,8 +232,8 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     echo ""
 
     echo -e "${YELLOW}🛠️ Paso 3/3: Instalando herramientas esenciales...${NC}"
-    chmod +x install/03-essential-tools.sh
-    ./install/03-essential-tools.sh
+    chmod +x install/03-tools.sh
+    ./install/03-tools.sh
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Error en la instalación de herramientas${NC}"
@@ -126,89 +244,6 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     echo ""
     
     COMPLETE_INSTALLATION=true
-    
-elif [[ $REPLY =~ ^[2]$ ]]; then
-    # Continuar después del reinicio
-    echo -e "${BLUE}📋 Configurando instalación post-reinicio...${NC}"
-    
-    # Copiar repositorio al sistema instalado
-    echo -e "${YELLOW}📁 Copiando repositorio al sistema...${NC}"
-    cp -r . /mnt/home/$USERNAME/sistema-install/
-    chown -R $USERNAME:$USERNAME /mnt/home/$USERNAME/sistema-install/
-    
-    # Crear script de auto-instalación
-    cat > /mnt/home/$USERNAME/auto-install.sh << 'EOF'
-#!/bin/bash
-# Script de auto-instalación post-reinicio
-
-set -e
-
-cd ~/sistema-install
-
-echo "🚀 Continuando instalación post-reinicio..."
-echo ""
-
-# Ejecutar X11 y dwm
-echo "🖥️ Configurando X11 y dwm..."
-chmod +x install/02-x11-dwm-setup.sh
-./install/02-x11-dwm-setup.sh
-
-if [ $? -ne 0 ]; then
-    echo "❌ Error en la configuración de X11 y dwm"
-    exit 1
-fi
-
-echo "✅ X11 y dwm configurados"
-echo ""
-
-# Preguntar si instalar herramientas
-echo "🤔 ¿Deseas instalar herramientas esenciales (Neovim, etc.)?"
-read -p "¿Continuar? (s/N): " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Ss]$ ]]; then
-    echo "🛠️ Instalando herramientas esenciales..."
-    chmod +x install/03-essential-tools.sh
-    ./install/03-essential-tools.sh
-    
-    if [ $? -ne 0 ]; then
-        echo "❌ Error en la instalación de herramientas"
-        exit 1
-    fi
-    
-    echo "✅ Herramientas esenciales instaladas"
-    echo ""
-fi
-
-# Limpiar archivos de instalación
-echo "🧹 Limpiando archivos de instalación..."
-rm -rf ~/sistema-install
-
-echo "🎉 ¡Instalación completada!"
-echo "🚀 El sistema está listo para usar."
-EOF
-
-    chmod +x /mnt/home/$USERNAME/auto-install.sh
-    chown $USERNAME:$USERNAME /mnt/home/$USERNAME/auto-install.sh
-    
-    # Configurar auto-ejecución en el primer login
-    cat >> /mnt/home/$USERNAME/.bashrc << 'EOF'
-
-# Auto-instalación post-reinicio
-if [ -f ~/auto-install.sh ]; then
-    echo "🚀 Se detectó script de auto-instalación"
-    echo "¿Ejecutar ahora? (s/N): "
-    read -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Ss]$ ]]; then
-        ~/auto-install.sh
-    fi
-fi
-EOF
-
-    echo -e "${GREEN}✅ Configuración post-reinicio completada${NC}"
-    echo -e "${YELLOW}📝 Después del reinicio, el sistema te preguntará si continuar${NC}"
-    COMPLETE_INSTALLATION=false
     
 else
     # Solo sistema base

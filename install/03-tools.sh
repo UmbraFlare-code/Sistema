@@ -25,9 +25,16 @@ pacman -S --noconfirm "${DEV_PACKAGES[@]}"
 # Configurar Neovim con nvim-tree
 echo "📝 Configurando Neovim ultra-optimizado..."
 
-# Crear directorios de configuración
-mkdir -p /home/$USER/.config/nvim/lua
-mkdir -p /home/$USER/.config/nvim/templates
+# Copiar configuración de Neovim si existe
+if [ -d "/home/$USER/sistema-install/config/nvim" ]; then
+    echo "📁 Copiando configuración de Neovim..."
+    cp -r /home/$USER/sistema-install/config/nvim /home/$USER/.config/
+    echo "✅ Configuración de Neovim copiada"
+else
+    echo "📝 Creando configuración de Neovim desde cero..."
+    # Crear directorios de configuración
+    mkdir -p /home/$USER/.config/nvim/lua
+    mkdir -p /home/$USER/.config/nvim/templates
 
 # Configuración principal de Neovim
 cat > /home/$USER/.config/nvim/init.lua << 'EOF'

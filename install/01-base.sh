@@ -169,7 +169,7 @@ echo "LANG=en_US.UTF-8" > $MOUNT_POINT/etc/locale.conf
 echo "KEYMAP=us" > $MOUNT_POINT/etc/vconsole.conf
 
 # Hostname
-echo "celeron-minimal" > $MOUNT_POINT/etc/hostname
+echo "0xTerminal" > $MOUNT_POINT/etc/hostname
 
 # Fstab
 genfstab -U $MOUNT_POINT >> $MOUNT_POINT/etc/fstab
