@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script principal de instalación - Sistema Ultra-Minimalista dwm
+# Script principal de instalación - Sistema Ultra-Minimalista bspwm
 # Uso: ./install.sh /dev/sda username
 
 set -e
@@ -16,7 +16,7 @@ DISK=${1:-/dev/sda}
 USERNAME=${2:-user}
 COMPLETE_INSTALLATION=false
 
-echo -e "${BLUE}🎯 Sistema Ultra-Minimalista dwm para Celeron 4GB${NC}"
+echo -e "${BLUE}🎯 Sistema Ultra-Minimalista bspwm para Celeron 4GB${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo ""
 echo -e "${YELLOW}Especificaciones objetivo:${NC}"
@@ -111,7 +111,7 @@ elif [[ $REPLY =~ ^[2]$ ]]; then
     # Copiar repositorio al sistema instalado
     echo -e "${YELLOW}📁 Copiando repositorio al sistema...${NC}"
     cp -r . /mnt/home/$USERNAME/sistema-install/
-    chown -R $USERNAME:$USERNAME /mnt/home/$USERNAME/sistema-install/
+    arch-chroot /mnt chown -R $USERNAME:$USERNAME /home/$USERNAME/sistema-install/
     
     # Crear script de auto-instalación mejorado
     cat > /mnt/home/$USERNAME/auto-install.sh << 'EOF'
@@ -134,18 +134,18 @@ if [ "$AVAILABLE_SPACE" -lt 500000 ]; then
     echo "   Se usará instalación ultra-minimalista"
 fi
 
-# Ejecutar X11 y dwm con script optimizado
-echo "🖥️ Configurando X11 y dwm..."
+# Ejecutar X11 y bspwm con script optimizado
+echo "🖥️ Configurando X11 y bspwm..."
 chmod +x install/02-x11.sh
 sudo ./install/02-x11.sh
 
 if [ $? -ne 0 ]; then
-    echo "❌ Error en la configuración de X11 y dwm"
+    echo "❌ Error en la configuración de X11 y bspwm"
     echo "💡 Puedes intentar manualmente más tarde"
     exit 1
 fi
 
-echo "✅ X11 y dwm configurados"
+echo "✅ X11 y bspwm configurados"
 echo ""
 
 # Preguntar si instalar herramientas
@@ -190,7 +190,7 @@ EOF
 if [ -f ~/auto-install.sh ]; then
     echo ""
     echo "🚀 Se detectó script de auto-instalación"
-    echo "💡 Este script instalará X11 + dwm + herramientas"
+    echo "💡 Este script instalará X11 + bspwm + herramientas"
     echo "¿Ejecutar ahora? (s/N): "
     read -n 1 -r
     echo ""
@@ -219,16 +219,16 @@ elif [[ $REPLY =~ ^[3]$ ]]; then
         exit 1
     fi
     
-    echo -e "${YELLOW}🖥️ Paso 2/3: Configurando X11 y dwm...${NC}"
-    chmod +x install/02-x11-dwm-setup.sh
-    ./install/02-x11-dwm-setup.sh
+    echo -e "${YELLOW}🖥️ Paso 2/3: Configurando X11 y bspwm ...${NC}"
+    chmod +x install/02-x11-bspwm-setup.sh
+    ./install/02-x11-bspwm.sh
 
     if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Error en la configuración de X11 y dwm${NC}"
+        echo -e "${RED}❌ Error en la configuración de X11 y bspwm ${NC}"
         exit 1
     fi
 
-    echo -e "${GREEN}✅ X11 y dwm configurados${NC}"
+    echo -e "${GREEN}✅ X11 y bspwm  configurados${NC}"
     echo ""
 
     echo -e "${YELLOW}🛠️ Paso 3/3: Instalando herramientas esenciales...${NC}"
@@ -257,7 +257,7 @@ if [ "$COMPLETE_INSTALLATION" = true ]; then
     echo ""
     echo -e "${BLUE}📊 Resumen del sistema:${NC}"
     echo -e "  Sistema Base: ~290MB"
-    echo -e "  X11 + dwm: ~66MB"
+    echo -e "  X11 + bspwm: ~66MB"
     echo -e "  Neovim + nvim-tree: ~60MB"
     echo -e "  Total estimado: ~416MB"
     echo -e "  RAM libre: ~3.5GB (87.5%)"
@@ -268,7 +268,7 @@ if [ "$COMPLETE_INSTALLATION" = true ]; then
     echo -e "  v - Abrir Neovim"
     echo -e "  tmux - Iniciar sesión tmux"
     echo ""
-    echo -e "${BLUE}🎯 Atajos de dwm:${NC}"
+    echo -e "${BLUE}🎯 Atajos de bspwm :${NC}"
     echo -e "  Super + Enter - Abrir terminal"
     echo -e "  Super + q - Cerrar ventana"
     echo -e "  Super + j/k - Cambiar ventana"
@@ -300,7 +300,7 @@ else
     echo -e "  1. Reiniciar el sistema"
     echo -e "  2. Iniciar sesión con usuario: $USERNAME"
     if [ -f "/mnt/home/$USERNAME/auto-install.sh" ]; then
-        echo -e "  3. El sistema te preguntará si continuar con X11 + dwm"
+        echo -e "  3. El sistema te preguntará si continuar con X11 + bspwm + herramientas"
         echo -e "  4. Después podrás elegir instalar herramientas adicionales"
     fi
     echo -e "  5. ¡Disfrutar del máximo rendimiento!"

@@ -7,4 +7,4 @@ xsetroot -solid black    # Fondo negro (menos memoria que imagen)
 # Sin picom ni efectos
 # Sin xrandr automático (configurar manual si necesario)
 
-exec dwm
+exec bspwm

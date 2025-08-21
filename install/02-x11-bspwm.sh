@@ -1,10 +1,10 @@
 #!/bin/bash
-# X11 y dwm con configuración de repositorios
-# Uso: ./02-x11-dwm-setup-fixed.sh
+# X11 y bspwm con configuración de repositorios
+# Uso: ./02-x11-bspwm.sh
 
 set -e
 
-echo "🖥️ Configurando X11 y dwm con repositorios..."
+echo "🖥️ Configurando X11 y bspwm con repositorios..."
 
 # Verificar que estamos en Arch Linux
 if [ ! -f /etc/arch-release ]; then
@@ -256,118 +256,40 @@ for package in "${X11_PACKAGES[@]}"; do
     fi
 done
 
-# Instalar dependencias de compilación
-echo "🔨 Instalando dependencias de compilación..."
+# Instalar bspwm y sxhkd
+echo "🏗️ Instalando bspwm y sxhkd..."
 
-BUILD_DEPS=(
-    "base-devel"
-    "git"
-    "xorg-server-devel"
-    "libx11"
-    "libxft"
-    "libxinerama"
+BSPWM_PACKAGES=(
+    "bspwm"
+    "sxhkd"
+    "dmenu"
 )
 
-for dep in "${BUILD_DEPS[@]}"; do
-    if ! pacman -Q "$dep" >/dev/null 2>&1; then
-        if ! install_package_safe "$dep"; then
-            echo "⚠️ Advertencia: $dep no se pudo instalar"
+for package in "${BSPWM_PACKAGES[@]}"; do
+    if ! pacman -Q "$package" >/dev/null 2>&1; then
+        if ! install_package_safe "$package"; then
+            echo "⚠️ Advertencia: $package no se pudo instalar"
         fi
     else
-        echo "✅ $dep ya está instalado"
+        echo "✅ $package ya está instalado"
     fi
 done
 
-# 🔨 Compilar e instalar dwm minimalista con fallback
-echo "🔨 Compilando dwm minimalista..."
-
-if ! command -v dwm >/dev/null 2>&1; then
-    cd /tmp
-    rm -rf dwm
-
-    echo "🌐 Clonando dwm..."
-    if ! git clone --depth=1 https://git.suckless.org/dwm; then
-        echo "⚠️  El repo oficial falló, probando desde GitHub..."
-        if ! git clone --depth=1 https://github.com/dylanaraps/dwm.git dwm; then
-            echo "❌ Error: no se pudo clonar dwm desde ningún mirror"
-            exit 1
-        fi
-    fi
-
-    cd dwm
-
-    # Configuración ultra-minimalista
-    cat > config.h << 'EOF'
-/* dwm ultra-minimal para Celeron 4GB */
-static const unsigned int borderpx  = 0;
-static const unsigned int snap      = 32;
-static const unsigned int gappx     = 0;
-static const int showbar            = 0;
-static const int topbar             = 1;
-static const char *fonts[]          = { "fixed:size=8" };
-static const char dmenufont[]       = "fixed:size=8";
-
-/* Colores básicos */
-static const char col_gray1[]       = "#222222";
-static const char col_gray2[]       = "#444444"; 
-static const char col_gray3[]       = "#bbbbbb";
-static const char col_gray4[]       = "#eeeeee";
-static const char col_cyan[]        = "#005577";
-
-/* Sin systray */
-static const unsigned int systraypinning = 0;
-static const unsigned int systrayspacing = 0;
-static const int showsystray             = 0;
-
-/* Configuración mínima */
-static const Rule rules[] = {
-    { "st",       NULL,       NULL,       0,            0,           -1 },
-};
-
-static const Layout layouts[] = {
-    { "[]=",      tile },
-    { "><>",      NULL },
-    { "[M]",      monocle },
-};
-
-#define MODKEY Mod4Mask
-static Key keys[] = {
-    { MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
-    { MODKEY,                       XK_q,      killclient,     {0} },
-    { MODKEY|ShiftMask,             XK_q,      quit,           {0} },
-    { MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
-    { MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
-    { MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
-    { MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
-    { MODKEY,                       XK_space,  setlayout,      {0} },
-    { MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
-    { MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
-};
-
-static Button buttons[] = {
-    { ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
-    { ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
-};
-EOF
-
-    # Compilar con optimizaciones
-    make clean
-    make -j$(nproc) CFLAGS="-O2 -march=native -mtune=native"
-    sudo make install
-
-    # Limpiar
-    cd /
-    rm -rf /tmp/dwm
-
-    echo "✅ dwm compilado e instalado"
-else
-    echo "✅ dwm ya está instalado"
-fi
-
-# Compilar st (terminal) desde source
+# Instalar terminal st (compilado desde source)
 echo "🔨 Compilando st ligero..."
 
 if ! command -v st >/dev/null 2>&1; then
+    # Instalar dependencias de compilación primero
+    BUILD_DEPS=("base-devel" "git")
+    
+    for dep in "${BUILD_DEPS[@]}"; do
+        if ! pacman -Q "$dep" >/dev/null 2>&1; then
+            if ! install_package_safe "$dep"; then
+                echo "⚠️ Advertencia: $dep no se pudo instalar"
+            fi
+        fi
+    done
+    
     cd /tmp
     if [ -d "st" ]; then
         rm -rf st
@@ -379,14 +301,16 @@ if ! command -v st >/dev/null 2>&1; then
         
         # Configuración ultra-minimalista
         cat > config.h << 'EOF'
-/* st ultra-minimal */
+/* st ultra-minimal para Celeron 4GB */
 char *font = "fixed:pixelsize=12:antialias=false";
 static int borderpx = 0;
 static char *shell = "/bin/bash";
 
+/* Sin transparency ni efectos */
 float alpha = 1.0;
 float alphaOffset = 0.0;
 
+/* Colores básicos del sistema */
 static const char *colorname[] = {
     "#000000", "#cd0000", "#00cd00", "#cdcd00",
     "#0000ee", "#cd00cd", "#00cdcd", "#e5e5e5",
@@ -394,7 +318,10 @@ static const char *colorname[] = {
     "#5c5cff", "#ff00ff", "#00ffff", "#ffffff",
 };
 
+/* Sin scrollback para ahorrar memoria */
 static unsigned int histsize = 0;
+
+/* Configuración mínima de teclado */
 static unsigned int defaultfg = 15;
 static unsigned int defaultbg = 0;
 static unsigned int defaultcs = 256;
@@ -413,6 +340,8 @@ EOF
         echo "✅ st compilado e instalado"
     else
         echo "❌ Error: No se pudo clonar st"
+        echo "⚠️ Instalando xterm como alternativa..."
+        install_package_safe "xterm"
     fi
 else
     echo "✅ st ya está instalado"
@@ -434,8 +363,12 @@ fi
 # Configuración X11 mínima
 echo "⚙️ Configurando X11 mínimo..."
 
-# Obtener el usuario actual
-CURRENT_USER=$(whoami)
+# Obtener el usuario actual (no root)
+CURRENT_USER=$(logname 2>/dev/null || echo $SUDO_USER)
+if [ -z "$CURRENT_USER" ]; then
+    echo "❌ Error: No se pudo determinar el usuario actual"
+    exit 1
+fi
 
 # Crear directorio de configuración
 mkdir -p /home/$CURRENT_USER/.config
@@ -444,10 +377,17 @@ mkdir -p /home/$CURRENT_USER/.config
 if [ -d "/home/$CURRENT_USER/sistema-install/config" ]; then
     echo "📁 Copiando configuraciones del sistema..."
     
-    # Copiar configuración de dwm
-    if [ -d "/home/$CURRENT_USER/sistema-install/config/dwm" ]; then
-        cp -r /home/$CURRENT_USER/sistema-install/config/dwm /home/$CURRENT_USER/.config/
-        echo "✅ Configuración dwm copiada"
+    # Copiar configuración de bspwm
+    if [ -d "/home/$CURRENT_USER/sistema-install/config/bspwm" ]; then
+        cp -r /home/$CURRENT_USER/sistema-install/config/bspwm /home/$CURRENT_USER/.config/
+        chmod +x /home/$CURRENT_USER/.config/bspwm/bspwmrc
+        echo "✅ Configuración bspwm copiada"
+    fi
+    
+    # Copiar configuración de sxhkd
+    if [ -d "/home/$CURRENT_USER/sistema-install/config/sxhkd" ]; then
+        cp -r /home/$CURRENT_USER/sistema-install/config/sxhkd /home/$CURRENT_USER/.config/
+        echo "✅ Configuración sxhkd copiada"
     fi
     
     # Copiar configuración de st
@@ -471,24 +411,142 @@ if [ -d "/home/$CURRENT_USER/sistema-install/config" ]; then
     fi
 fi
 
+# Crear configuraciones por defecto si no existen
+# Crear directorio bspwm
+if [ ! -d "/home/$CURRENT_USER/.config/bspwm" ]; then
+    mkdir -p /home/$CURRENT_USER/.config/bspwm
+    
+    # Crear bspwmrc básico
+    cat > /home/$CURRENT_USER/.config/bspwm/bspwmrc << 'EOF'
+#!/bin/sh
+# bspwm ultra-minimal para Celeron 4GB
+
+# Monitor y escritorios
+bspc monitor -d I II III IV V
+
+# Configuración de ventanas
+bspc config border_width         0
+bspc config window_gap           0
+bspc config split_ratio          0.50
+bspc config borderless_monocle   true
+bspc config gapless_monocle      true
+
+# Focus
+bspc config focus_follows_pointer true
+bspc config pointer_follows_focus false
+bspc config pointer_follows_monitor false
+
+# Colores (minimalista)
+bspc config normal_border_color "#444444"
+bspc config active_border_color "#666666"
+bspc config focused_border_color "#005577"
+bspc config presel_feedback_color "#005577"
+
+# Reglas de aplicaciones
+bspc rule -a "*" state=tiled
+
+# Autostart mínimo
+sxhkd &
+EOF
+
+    chmod +x /home/$CURRENT_USER/.config/bspwm/bspwmrc
+    echo "✅ bspwmrc creado"
+fi
+
+# Crear directorio sxhkd
+if [ ! -d "/home/$CURRENT_USER/.config/sxhkd" ]; then
+    mkdir -p /home/$CURRENT_USER/.config/sxhkd
+    
+    # Crear sxhkdrc básico
+    cat > /home/$CURRENT_USER/.config/sxhkd/sxhkdrc << 'EOF'
+# sxhkd ultra-minimal para Celeron 4GB
+
+# Terminal
+super + Return
+    st
+
+# Launcher
+super + d
+    dmenu_run -fn 'fixed-8'
+
+# Cerrar ventana
+super + q
+    bspc node -c
+
+# Salir de bspwm
+super + shift + q
+    bspc quit
+
+# Alternar entre tiled y monocle
+super + m
+    bspc desktop -l next
+
+# Navegar ventanas
+super + {j,k}
+    bspc node -f {next,prev}.local.!hidden.window
+
+# Mover ventanas
+super + shift + {j,k}
+    bspc node -s {next,prev}.local.!hidden.window
+
+# Cambiar escritorio
+super + {1-5}
+    bspc desktop -f '^{1-5}'
+
+# Mover ventana a escritorio
+super + shift + {1-5}
+    bspc node -d '^{1-5}'
+
+# Redimensionar ventanas
+super + alt + {h,j,k,l}
+    bspc node -z {left -20 0,bottom 0 20,top 0 -20,right 20 0}
+
+# Preseleccionar división
+super + ctrl + {h,j,k,l}
+    bspc node -p {west,south,north,east}
+
+# Cancelar preselección
+super + ctrl + space
+    bspc node -p cancel
+
+# Alternar fullscreen
+super + f
+    bspc node -t fullscreen
+
+# Alternar floating
+super + space
+    bspc node -t floating
+
+# Reload keybindings
+super + Escape
+    pkill -USR1 -x sxhkd
+EOF
+
+    echo "✅ sxhkdrc creado"
+fi
+
 # Configurar .xinitrc
 if [ ! -f /home/$CURRENT_USER/.xinitrc ]; then
     cat > /home/$CURRENT_USER/.xinitrc << 'EOF'
 #!/bin/sh
-# X11 ultra-minimal
+# X11 ultra-minimal con bspwm
 xset r rate 300 50
 xset s off -dpms
 xsetroot -solid black
 
-exec dwm
+exec bspwm
 EOF
 
     chmod +x /home/$CURRENT_USER/.xinitrc
-    chown $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.xinitrc
     echo "✅ .xinitrc configurado"
 else
     echo "✅ .xinitrc ya existe"
 fi
+
+# Configurar permisos de los archivos
+chown -R $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.config/bspwm
+chown -R $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.config/sxhkd
+chown $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.xinitrc
 
 # Configuración X11 optimizada
 mkdir -p /etc/X11/xorg.conf.d
@@ -528,11 +586,12 @@ echo "🧹 Limpiando archivos temporales..."
 pacman -Sc --noconfirm || true
 rm -rf /tmp/* /var/tmp/* || true
 
-echo "✅ X11 y dwm configurados!"
+echo "✅ X11 y bspwm configurados!"
 echo ""
 echo "📊 Información del sistema:"
 echo "   Usuario actual: $CURRENT_USER"
-echo "   dwm instalado: $(command -v dwm >/dev/null 2>&1 && echo "Sí" || echo "No")"
+echo "   bspwm instalado: $(command -v bspwm >/dev/null 2>&1 && echo "Sí" || echo "No")"
+echo "   sxhkd instalado: $(command -v sxhkd >/dev/null 2>&1 && echo "Sí" || echo "No")"
 echo "   st instalado: $(command -v st >/dev/null 2>&1 && echo "Sí" || echo "No")"
 echo "   ly instalado: $(command -v ly >/dev/null 2>&1 && echo "Sí" || echo "No")"
 echo "   Espacio restante: $((AVAILABLE_SPACE / 1024))MB"
@@ -541,12 +600,14 @@ echo ""
 echo "📋 Próximos pasos:"
 echo "   1. Reiniciar el sistema"
 echo "   2. Iniciar sesión con ly (o ejecutar 'startx' manualmente)"
-echo "   3. ¡Disfrutar del escritorio ultra-minimalista!"
+echo "   3. ¡Disfrutar del escritorio ultra-minimalista con bspwm!"
 
 echo ""
-echo "🎯 Atajos de dwm:"
+echo "🎯 Atajos de bspwm:"
 echo "   Super + Enter - Abrir terminal"
+echo "   Super + d - Abrir dmenu"
 echo "   Super + q - Cerrar ventana"
-echo "   Super + j/k - Cambiar ventana"
-echo "   Super + h/l - Redimensionar"
-echo "   Super + Space - Cambiar layout"
+echo "   Super + m - Alternar monocle/tiled"
+echo "   Super + j/k - Navegar ventanas"
+echo "   Super + 1-5 - Cambiar escritorio"
+echo "   Super + f - Fullscreen"
