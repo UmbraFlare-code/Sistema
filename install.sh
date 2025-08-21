@@ -110,9 +110,8 @@ elif [[ $REPLY =~ ^[2]$ ]]; then
     
     # Copiar repositorio al sistema instalado
     echo -e "${YELLOW}📁 Copiando repositorio al sistema...${NC}"
+    mkdir -p /mnt/home/$USERNAME
     cp -r . /mnt/home/$USERNAME/sistema-install/
-    arch-chroot /mnt chown -R $USERNAME:$USERNAME /home/$USERNAME/sistema-install/
-    
     # Crear script de auto-instalación mejorado
     cat > /mnt/home/$USERNAME/auto-install.sh << 'EOF'
 #!/bin/bash
@@ -179,9 +178,6 @@ echo "🎯 Para iniciar el entorno gráfico:"
 echo "   - Reiniciar y usar ly display manager"
 echo "   - O ejecutar 'startx' manualmente"
 EOF
-
-    chmod +x /mnt/home/$USERNAME/auto-install.sh
-    chown $USERNAME:$USERNAME /mnt/home/$USERNAME/auto-install.sh
     
     # Configurar auto-ejecución en el primer login
     cat >> /mnt/home/$USERNAME/.bashrc << 'EOF'
