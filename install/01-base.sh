@@ -118,6 +118,8 @@ Include = /etc/pacman.d/mirrorlist
 EOF
 
 # Crear mirrorlist optimizado
+mkdir -p $MOUNT_POINT/etc/pacman.d
+echo "🌐 Configurando mirrorlist optimizada..."
 cat > $MOUNT_POINT/etc/pacman.d/mirrorlist << 'EOF'
 ## Arch Linux repository mirrorlist
 ## Generated for optimal performance
@@ -206,7 +208,7 @@ echo "⚙️ Configurando sistema base..."
 echo "en_US.UTF-8 UTF-8" > $MOUNT_POINT/etc/locale.gen
 arch-chroot $MOUNT_POINT locale-gen
 echo "LANG=en_US.UTF-8" > $MOUNT_POINT/etc/locale.conf
-echo "KEYMAP=us" > $MOUNT_POINT/etc/vconsole.conf
+echo "KEYMAP=la-latin1" > $MOUNT_POINT/etc/vconsole.conf
 
 # Hostname
 echo "0xTerminal" > $MOUNT_POINT/etc/hostname
