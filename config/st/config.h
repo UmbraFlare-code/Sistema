@@ -1,5 +1,5 @@
 /* st ultra-minimal para máximo rendimiento */
-char *font = "fixed:pixelsize=12:antialias=false"; // Sin antialiasing
+char *font = "Monofur Nerd Font Mono:pixelsize=12:antialias=false"; // Sin antialiasing
 static int borderpx = 0;                           // Sin bordes
 static char *shell = "/bin/bash";                  // Shell directo
 

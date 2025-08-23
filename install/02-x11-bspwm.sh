@@ -164,34 +164,6 @@ if ! ping -c 1 archlinux.org >/dev/null 2>&1; then
     exit 1
 fi
 
-# Verificar espacio en disco
-echo "💾 Verificando espacio en disco..."
-AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
-REQUIRED_SPACE=500000  # 500MB en KB
-
-if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
-    echo "⚠️ Advertencia: Espacio limitado detectado"
-    echo "   Espacio disponible: $((AVAILABLE_SPACE / 1024))MB"
-    echo "   Espacio requerido: $((REQUIRED_SPACE / 1024))MB"
-    echo ""
-    echo "🧹 Limpiando cache y archivos temporales..."
-    pacman -Sc --noconfirm || true
-    rm -rf /tmp/* /var/tmp/* || true
-    
-    # Verificar espacio nuevamente
-    AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
-    if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
-        echo "❌ Error: Espacio insuficiente incluso después de limpiar"
-        echo "💡 Recomendaciones:"
-        echo "   1. Liberar más espacio eliminando archivos innecesarios"
-        echo "   2. Usar un disco con más capacidad"
-        echo "   3. Instalar solo componentes esenciales"
-        exit 1
-    fi
-fi
-
-echo "✅ Espacio suficiente disponible: $((AVAILABLE_SPACE / 1024))MB"
-
 # Función para instalar paquetes con verificación
 install_package_safe() {
     local package=$1
@@ -244,6 +216,7 @@ X11_PACKAGES=(
     "libxft"
     "libxinerama"
     "freetype2"
+    "ttf-monofur-nerd"
 )
 
 for package in "${X11_PACKAGES[@]}"; do
@@ -262,7 +235,6 @@ echo "🏗️ Instalando bspwm y sxhkd..."
 BSPWM_PACKAGES=(
     "bspwm"
     "sxhkd"
-    "dmenu"
 )
 
 for package in "${BSPWM_PACKAGES[@]}"; do
@@ -280,7 +252,7 @@ echo "🔨 Compilando st ligero..."
 
 if ! command -v st >/dev/null 2>&1; then
     # Instalar dependencias de compilación primero
-    BUILD_DEPS=("base-devel" "git")
+    BUILD_DEPS=("base-devel" "git" "fontconfig")
     
     for dep in "${BUILD_DEPS[@]}"; do
         if ! pacman -Q "$dep" >/dev/null 2>&1; then
@@ -298,39 +270,9 @@ if ! command -v st >/dev/null 2>&1; then
     # Clonar st
     if git clone --depth=1 https://git.suckless.org/st; then
         cd st
-        
-        # Configuración ultra-minimalista
-        cat > config.h << 'EOF'
-/* st ultra-minimal para Celeron 4GB */
-char *font = "fixed:pixelsize=12:antialias=false";
-static int borderpx = 0;
-static char *shell = "/bin/bash";
-
-/* Sin transparency ni efectos */
-float alpha = 1.0;
-float alphaOffset = 0.0;
-
-/* Colores básicos del sistema */
-static const char *colorname[] = {
-    "#000000", "#cd0000", "#00cd00", "#cdcd00",
-    "#0000ee", "#cd00cd", "#00cdcd", "#e5e5e5",
-    "#7f7f7f", "#ff0000", "#00ff00", "#ffff00", 
-    "#5c5cff", "#ff00ff", "#00ffff", "#ffffff",
-};
-
-/* Sin scrollback para ahorrar memoria */
-static unsigned int histsize = 0;
-
-/* Configuración mínima de teclado */
-static unsigned int defaultfg = 15;
-static unsigned int defaultbg = 0;
-static unsigned int defaultcs = 256;
-static unsigned int defaultrcs = 257;
-EOF
 
         # Compilar con optimizaciones
         make clean
-        make -j$(nproc) CFLAGS="-O2 -march=native -mtune=native"
         make install
         
         # Limpiar archivos de compilación
@@ -396,12 +338,6 @@ if [ -d "/home/$CURRENT_USER/sistema-install/config" ]; then
         echo "✅ Configuración st copiada"
     fi
     
-    # Copiar configuración de tmux
-    if [ -f "/home/$CURRENT_USER/sistema-install/config/tmux.conf" ]; then
-        cp /home/$CURRENT_USER/sistema-install/config/tmux.conf /home/$CURRENT_USER/.tmux.conf
-        echo "✅ Configuración tmux copiada"
-    fi
-    
     # Copiar scripts de rendimiento
     if [ -d "/home/$CURRENT_USER/sistema-install/scripts" ]; then
         mkdir -p /usr/local/bin
@@ -411,118 +347,19 @@ if [ -d "/home/$CURRENT_USER/sistema-install/config" ]; then
     fi
 fi
 
-# Crear configuraciones por defecto si no existen
-# Crear directorio bspwm
+# Configuración de bspwm
 if [ ! -d "/home/$CURRENT_USER/.config/bspwm" ]; then
     mkdir -p /home/$CURRENT_USER/.config/bspwm
-    
-    # Crear bspwmrc básico
-    cat > /home/$CURRENT_USER/.config/bspwm/bspwmrc << 'EOF'
-#!/bin/sh
-# bspwm ultra-minimal para Celeron 4GB
-
-# Monitor y escritorios
-bspc monitor -d I II III IV V
-
-# Configuración de ventanas
-bspc config border_width         0
-bspc config window_gap           0
-bspc config split_ratio          0.50
-bspc config borderless_monocle   true
-bspc config gapless_monocle      true
-
-# Focus
-bspc config focus_follows_pointer true
-bspc config pointer_follows_focus false
-bspc config pointer_follows_monitor false
-
-# Colores (minimalista)
-bspc config normal_border_color "#444444"
-bspc config active_border_color "#666666"
-bspc config focused_border_color "#005577"
-bspc config presel_feedback_color "#005577"
-
-# Reglas de aplicaciones
-bspc rule -a "*" state=tiled
-
-# Autostart mínimo
-sxhkd &
-EOF
-
+    cp /usr/share/doc/bspwm/examples/bspwmrc /home/$CURRENT_USER/.config/bspwm/bspwmrc
     chmod +x /home/$CURRENT_USER/.config/bspwm/bspwmrc
-    echo "✅ bspwmrc creado"
+    echo "✅ bspwmrc copiado desde ejemplos"
 fi
 
-# Crear directorio sxhkd
+# Configuración de sxhkd
 if [ ! -d "/home/$CURRENT_USER/.config/sxhkd" ]; then
     mkdir -p /home/$CURRENT_USER/.config/sxhkd
-    
-    # Crear sxhkdrc básico
-    cat > /home/$CURRENT_USER/.config/sxhkd/sxhkdrc << 'EOF'
-# sxhkd ultra-minimal para Celeron 4GB
-
-# Terminal
-super + Return
-    st
-
-# Launcher
-super + d
-    dmenu_run -fn 'fixed-8'
-
-# Cerrar ventana
-super + q
-    bspc node -c
-
-# Salir de bspwm
-super + shift + q
-    bspc quit
-
-# Alternar entre tiled y monocle
-super + m
-    bspc desktop -l next
-
-# Navegar ventanas
-super + {j,k}
-    bspc node -f {next,prev}.local.!hidden.window
-
-# Mover ventanas
-super + shift + {j,k}
-    bspc node -s {next,prev}.local.!hidden.window
-
-# Cambiar escritorio
-super + {1-5}
-    bspc desktop -f '^{1-5}'
-
-# Mover ventana a escritorio
-super + shift + {1-5}
-    bspc node -d '^{1-5}'
-
-# Redimensionar ventanas
-super + alt + {h,j,k,l}
-    bspc node -z {left -20 0,bottom 0 20,top 0 -20,right 20 0}
-
-# Preseleccionar división
-super + ctrl + {h,j,k,l}
-    bspc node -p {west,south,north,east}
-
-# Cancelar preselección
-super + ctrl + space
-    bspc node -p cancel
-
-# Alternar fullscreen
-super + f
-    bspc node -t fullscreen
-
-# Alternar floating
-super + space
-    bspc node -t floating
-
-# Reload keybindings
-super + Escape
-    pkill -USR1 -x sxhkd
-EOF
-
-    echo "✅ sxhkdrc creado"
+    cp /usr/share/doc/bspwm/examples/sxhkdrc /home/$CURRENT_USER/.config/sxhkd/sxhkdrc
+    echo "✅ sxhkdrc copiado desde ejemplos"
 fi
 
 # Configurar .xinitrc
@@ -530,10 +367,9 @@ if [ ! -f /home/$CURRENT_USER/.xinitrc ]; then
     cat > /home/$CURRENT_USER/.xinitrc << 'EOF'
 #!/bin/sh
 # X11 ultra-minimal con bspwm
-xset r rate 300 50
-xset s off -dpms
-xsetroot -solid black
+xset r rate 300 50        # Teclado rápido
 
+sxhkd &
 exec bspwm
 EOF
 
@@ -549,37 +385,37 @@ chown -R $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.config/sxhkd
 chown $CURRENT_USER:$CURRENT_USER /home/$CURRENT_USER/.xinitrc
 
 # Configuración X11 optimizada
-mkdir -p /etc/X11/xorg.conf.d
-cat > /etc/X11/xorg.conf.d/10-performance.conf << 'EOF'
-Section "Device"
-    Identifier "Intel"
-    Driver "intel"
-    Option "AccelMethod" "sna"
-    Option "TearFree" "true"
-    Option "DRI" "3"
-EndSection
+# mkdir -p /etc/X11/xorg.conf.d
+# cat > /etc/X11/xorg.conf.d/10-performance.conf << 'EOF'
+# Section "Device"
+#     Identifier "Intel"
+#     Driver "intel"
+#     Option "AccelMethod" "sna"
+#     Option "TearFree" "true"
+#     Option "DRI" "3"
+# EndSection
 
-Section "Monitor"
-    Identifier "Monitor0"
-    Option "DPMS" "false"
-EndSection
-
-Section "ServerLayout"
-    Identifier "Layout0"
-    Screen 0 "Screen0"
-EndSection
-
-Section "Screen"
-    Identifier "Screen0"
-    Device "Intel"
-    Monitor "Monitor0"
-    DefaultDepth 24
-    SubSection "Display"
-        Depth 24
-        Modes "1024x768" "800x600"
-    EndSubSection
-EndSection
-EOF
+# Section "Monitor"
+#     Identifier "Monitor0"
+#     Option "DPMS" "false"
+# EndSection
+# 
+# Section "ServerLayout"
+#     Identifier "Layout0"
+#     Screen 0 "Screen0"
+# EndSection
+# 
+# Section "Screen"
+#     Identifier "Screen0"
+#     Device "Intel"
+#     Monitor "Monitor0"
+#     DefaultDepth 24
+#     SubSection "Display"
+#         Depth 24
+#         Modes "1024x768" "800x600"
+#     EndSubSection
+# EndSection
+# EOF
 
 # Limpiar archivos temporales
 echo "🧹 Limpiando archivos temporales..."

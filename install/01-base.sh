@@ -9,10 +9,6 @@ DISK=${1:-/dev/sda}
 USERNAME=${2:-user}
 MOUNT_POINT="/mnt"
 
-echo "🚀 Instalación base ultra-mínima para Celeron 4GB (Compatible con bspwm)"
-echo "Disco: $DISK"
-echo "Usuario: $USERNAME"
-
 # Solicitar contraseñas al inicio
 echo ""
 echo "🔐 Configuración de contraseñas:"
@@ -21,12 +17,10 @@ echo "================================"
 # Contraseña para root
 echo -n "Ingresa la contraseña para root: "
 read -s ROOT_PASSWORD
-echo ""
 
 # Confirmar contraseña de root
 echo -n "Confirma la contraseña para root: "
 read -s ROOT_PASSWORD_CONFIRM
-echo ""
 
 # Verificar que coincidan
 if [ "$ROOT_PASSWORD" != "$ROOT_PASSWORD_CONFIRM" ]; then
@@ -37,21 +31,16 @@ fi
 # Contraseña para usuario
 echo -n "Ingresa la contraseña para $USERNAME: "
 read -s USER_PASSWORD
-echo ""
 
 # Confirmar contraseña de usuario
 echo -n "Confirma la contraseña para $USERNAME: "
 read -s USER_PASSWORD_CONFIRM
-echo ""
 
 # Verificar que coincidan
 if [ "$USER_PASSWORD" != "$USER_PASSWORD_CONFIRM" ]; then
     echo "❌ Error: Las contraseñas de usuario no coinciden"
     exit 1
 fi
-
-echo "✅ Contraseñas configuradas correctamente"
-echo ""
 
 # Verificar que estamos en modo UEFI o BIOS
 if [ -d /sys/firmware/efi/efivars ]; then
@@ -62,10 +51,6 @@ else
     echo "✅ Modo BIOS detectado"
     ROOT_PARTITION="${DISK}1"
 fi
-
-# Cargar mapa de teclado
-echo "⌨️  Configurando teclado en la-latin1..."
-loadkeys la-latin1
 
 # Crear particiones
 echo "📦 Creando particiones..."
@@ -93,7 +78,7 @@ fi
 
 # Configurar pacman para no extraer documentación y optimizar para bspwm
 mkdir -p $MOUNT_POINT/etc
-echo "📦 Configurando pacman optimizado..."
+
 cat > $MOUNT_POINT/etc/pacman.conf << 'EOF'
 [options]
 Architecture = auto
@@ -164,10 +149,11 @@ install_package_with_retry() {
     return 1
 }
 
-# Instalación recursiva de paquetes uno por uno
 echo "🚀 Iniciando instalación recursiva de paquetes..."
 
+# =========================
 # Paquetes críticos (obligatorios)
+# =========================
 critical_packages=("base" "linux-lts" "linux-firmware" "networkmanager")
 echo "📋 Paquetes críticos: ${critical_packages[*]}"
 
@@ -179,7 +165,9 @@ for package in "${critical_packages[@]}"; do
     fi
 done
 
+# =========================
 # Paquetes importantes (continuar aunque fallen algunos)
+# =========================
 important_packages=("linux-lts-headers" "sudo" "gcc" "make" "base-devel" "git")
 echo "📋 Paquetes importantes: ${important_packages[*]}"
 
@@ -189,8 +177,10 @@ for package in "${important_packages[@]}"; do
     fi
 done
 
-# Paquetes opcionales específicos para bspwm
-optional_packages=("neovim" "tmux" "bash-completion" "wget" "curl" "tree" "htop")
+# =========================
+# Paquetes opcionales para entorno de desarrollo
+# =========================
+optional_packages=("neovim" "bash-completion" "wget" "curl" "tree" "htop" "unzip" "zip")
 echo "📋 Paquetes opcionales para desarrollo: ${optional_packages[*]}"
 
 for package in "${optional_packages[@]}"; do
@@ -199,7 +189,43 @@ for package in "${optional_packages[@]}"; do
     fi
 done
 
-echo "✅ Instalación recursiva completada!"
+# =========================
+# Paquetes para Laravel (PHP + DB + Composer)
+# =========================
+laravel_packages=("php" "php-gd" "php-pgsql" "php-sqlite" "php-mysql" "php-curl" "php-xml" "php-zip" "composer" "mariadb" "sqlite")
+echo "📋 Paquetes para Laravel: ${laravel_packages[*]}"
+
+for package in "${laravel_packages[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "⚠️ Advertencia: $package no se pudo instalar, Laravel puede no funcionar correctamente..."
+    fi
+done
+
+# =========================
+# Paquetes para React (Node.js + gestores de paquetes)
+# =========================
+react_packages=("nodejs" "npm" "pnpm")
+echo "📋 Paquetes para React: ${react_packages[*]}"
+
+for package in "${react_packages[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "⚠️ Advertencia: $package no se pudo instalar, React puede no funcionar correctamente..."
+    fi
+done
+
+# =========================
+# Paquetes extra para mejorar Neovim / NvChad
+# =========================
+neovim_extras=("tree-sitter" "ripgrep" "fd")
+echo "📋 Paquetes extra para Neovim: ${neovim_extras[*]}"
+
+for package in "${neovim_extras[@]}"; do
+    if ! install_package_with_retry "$package"; then
+        echo "⚠️ Advertencia: $package no se pudo instalar, algunas funciones de Neovim pueden fallar..."
+    fi
+done
+
+echo "✅ Instalación de paquetes completada"
 
 # Configuración mínima del sistema
 echo "⚙️ Configurando sistema base..."
@@ -240,91 +266,20 @@ echo "$USERNAME:$USER_PASSWORD" | arch-chroot $MOUNT_POINT chpasswd
 # Configurar sudoers para bspwm
 echo "🔧 Configurando sudoers..."
 cat > $MOUNT_POINT/etc/sudoers << 'EOF'
-## sudoers file.
 ##
-## This file MUST be edited with the 'visudo' command as root.
-##
-## See the sudoers man page for the details on how to write a sudoers file.
+## Sudoers minimal para Arch + bspwm
 ##
 
-##
-## Host alias specification
-##
-## Groups of machines. These may include host names (optionally with wildcards),
-## IP addresses, network numbers or netgroups.
-# Host_Alias	WEBSERVERS = www1, www2, www3
-
-##
-## User alias specification
-##
-## Groups of users.  These may consist of user names, uids, Unix groups,
-## or netgroups.
-# User_Alias	ADMINS = millert, dowdy, mikef
-
-##
-## Cmnd alias specification
-##
-## Groups of commands.  Often used to group related commands together.
-# Cmnd_Alias	PROCESSES = /usr/bin/nice, /bin/kill, /usr/bin/renice, \
-# 			    /usr/bin/pkill, /usr/bin/top
-
-##
-## Defaults specification
-##
-## You may wish to keep some of the following environment variables
-## when running commands via sudo.
-##
-## Locale settings
-# Defaults env_keep += "LANG LANGUAGE LINGUAS LC_* _XKB_CHARSET"
-##
-## Run X applications through sudo; HOME is used to find the
-## .Xauthority file.  Note that other programs use HOME to find   
-## configuration files and this may lead to privilege escalation!
-# Defaults env_keep += "HOME"
-##
-## X11 resources and cache
-# Defaults env_keep += "XAPPLRESDIR XFILESEARCHPATH XUSERFILESEARCHPATH"
-# Defaults env_keep += "QTDIR KDEDIR"
-##
-## Allow sudo-run commands to inherit the callers' value of $PATH
-# Defaults env_keep += "PATH"
-##
-## Uncomment to enable special input methods.  Care should be taken as
-## this may allow users to subvert the command being run via sudo.
-# Defaults env_keep += "XMODIFIERS GTK_IM_MODULE QT_IM_MODULE QT_IM_SWITCHER"
-##
-## Uncomment to enable logging of a command's output, except for
-## sudoreplay and reboot.  Use sudoreplay to play back logged sessions.
-# Defaults log_output
-# Defaults!/usr/bin/sudoreplay !log_output
-# Defaults!/usr/local/bin/sudoreplay !log_output
-# Defaults!REBOOT !log_output
-
-##
-## Runas alias specification
-##
-
-##
-## User privilege specification
-##
+# Usuario root
 root ALL=(ALL) ALL
 
-## Uncomment to allow members of group wheel to execute any command
+# Permitir a los usuarios del grupo wheel ejecutar cualquier comando con sudo
 %wheel ALL=(ALL) ALL
 
-## Same thing without a password
+# (Opcional) Descomentar para permitir sudo sin contraseña:
 # %wheel ALL=(ALL) NOPASSWD: ALL
 
-## Uncomment to allow members of group sudo to execute any command
-# %sudo	ALL=(ALL) ALL
-
-## Uncomment to allow any user to run sudo if they know the password
-## of the user they are trying to run the command as (root by default).
-# Defaults targetpw  # Ask for the password of the target user
-# ALL ALL=(ALL) ALL  # WARNING: only use this together with 'Defaults targetpw'
-
-## Read drop-in files from /etc/sudoers.d
-## (the '#' here does not indicate a comment)
+# Incluir configuraciones adicionales en /etc/sudoers.d
 #includedir /etc/sudoers.d
 EOF
 
@@ -363,36 +318,6 @@ vm.page-cluster=0
 # X11/bspwm optimizations
 kernel.sched_latency_ns=6000000
 kernel.sched_min_granularity_ns=750000
-EOF
-
-# Configuración makepkg optimizada (en el sistema instalado)
-echo "🔧 Configurando makepkg para compilaciones eficientes..."
-cat > $MOUNT_POINT/etc/makepkg.conf << EOF
-# Optimizaciones para Celeron con bspwm
-CPPFLAGS="-D_FORTIFY_SOURCE=2"
-CFLAGS="-O2 -march=native -mtune=native -pipe -fstack-protector-strong"
-CXXFLAGS="\$CFLAGS"
-LDFLAGS="-Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
-
-# Paralelismo optimizado para Celeron (generalmente 2-4 cores)
-MAKEFLAGS="-j\$(nproc)"
-
-# Compresión optimizada
-COMPRESSGZ=(gzip -c -f -n)
-COMPRESSBZ2=(bzip2 -c -f)
-COMPRESSXZ=(xz -c -z -)
-COMPRESSZST=(zstd -c -z -q - --threads=0)
-
-# Optimización específica para paquetes pequeños de bspwm
-PURGE_TARGETS=(usr/share/man usr/share/doc usr/share/info usr/share/help usr/share/gtk-doc)
-
-# Debug optimizado
-DEBUG_CFLAGS="-g -fvar-tracking-assignments"
-DEBUG_CXXFLAGS="-g -fvar-tracking-assignments"
-
-# Buildenv optimizado para desarrollo ligero
-BUILDENV=(!distcc color !ccache check !sign)
-OPTIONS=(strip docs !libtool !staticlibs emptydirs zipman purge !debug)
 EOF
 
 # Deshabilitar servicios no críticos
@@ -491,9 +416,6 @@ alias c='gcc -O2 -march=native -Wall'
 alias cpp='g++ -O2 -march=native -Wall -std=c++17'
 alias py='python3'
 alias v='nvim'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ....='cd ../../..'
 
 # Funciones útiles para desarrollo
 cr() {
@@ -571,7 +493,7 @@ echo "📝 Generando configuración GRUB optimizada..."
 cat > $MOUNT_POINT/etc/default/grub << EOF
 # Configuración GRUB optimizada para bspwm
 GRUB_DEFAULT=0
-GRUB_TIMEOUT=3
+GRUB_TIMEOUT=1
 GRUB_DISTRIBUTOR="Arch"
 GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 rd.systemd.show_status=false rd.udev.log_priority=3 transparent_hugepage=never"
 GRUB_CMDLINE_LINUX=""
@@ -579,13 +501,10 @@ GRUB_DISABLE_OS_PROBER=true
 GRUB_DISABLE_SUBMENU=true
 GRUB_TERMINAL_OUTPUT=console
 GRUB_DISABLE_RECOVERY=true
-GRUB_GFXMODE=1024x768
-GRUB_GFXPAYLOAD_LINUX=keep
 EOF
 
 # Generar grub.cfg
 arch-chroot $MOUNT_POINT grub-mkconfig -o /boot/grub/grub.cfg
-
 echo "✅ GRUB instalado y configurado correctamente!"
 
 # Configurar timezone
@@ -593,26 +512,6 @@ echo "🕐 Configurando timezone..."
 arch-chroot $MOUNT_POINT ln -sf /usr/share/zoneinfo/America/Lima /etc/localtime
 arch-chroot $MOUNT_POINT hwclock --systohc
 
-echo "✅ Instalación base completada y optimizada para bspwm!"
-echo ""
-echo "📋 Próximos pasos:"
-echo "   1. Reiniciar: umount -R /mnt && reboot"
-echo "   2. Ejecutar: sudo ./02-x11-bspwm.sh"
-echo "   3. Ejecutar: sudo ./03-tools.sh"
-echo "   4. ¡Disfrutar de bspwm ultra-optimizado!"
-echo ""
-echo "🔐 Información de acceso:"
-echo "   Usuario: $USERNAME"
-echo "   Contraseña: [La que ingresaste]"
-echo "   Root: [La contraseña que ingresaste]"
-echo ""
-echo "🚀 Sistema optimizado para:"
-echo "   ✅ Compilación eficiente de código"
-echo "   ✅ Gestión de memoria optimizada"
-echo "   ✅ Compatibilidad total con bspwm"
-echo "   ✅ Herramientas de desarrollo incluidas"
-echo "   ✅ ZRAM configurado para máximo rendimiento"
-echo ""
 echo "💡 Comandos útiles después del reinicio:"
 echo "   perf_mode - Activar modo rendimiento"
 echo "   cleanc - Limpiar archivos de compilación"

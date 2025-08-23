@@ -16,21 +16,6 @@ DISK=${1:-/dev/sda}
 USERNAME=${2:-user}
 COMPLETE_INSTALLATION=false
 
-echo -e "${BLUE}🎯 Sistema Ultra-Minimalista bspwm para Celeron 4GB${NC}"
-echo -e "${BLUE}================================================${NC}"
-echo ""
-echo -e "${YELLOW}Especificaciones objetivo:${NC}"
-echo -e "  CPU: Intel Celeron (cualquier gen)"
-echo -e "  RAM: 4GB DDR3"
-echo -e "  Storage: 8GB HDD/SSD"
-echo -e "  GPU: Intel HD Graphics integrada"
-echo ""
-echo -e "${YELLOW}Meta de consumo:${NC}"
-echo -e "  Sistema completo: ~416MB"
-echo -e "  RAM libre: ~3.5GB (87.5%)"
-echo -e "  CPU idle: <3%"
-echo ""
-
 # Verificar parámetros
 if [ -z "$DISK" ] || [ -z "$USERNAME" ]; then
     echo -e "${RED}❌ Uso: $0 <disco> <usuario>${NC}"
@@ -68,13 +53,6 @@ if ! ping -c 1 archlinux.org >/dev/null 2>&1; then
     echo -e "${YELLOW}Conecta a internet antes de continuar${NC}"
     exit 1
 fi
-
-echo -e "${GREEN}✅ Verificaciones completadas${NC}"
-echo ""
-
-# Ejecutar scripts de instalación
-echo -e "${BLUE}🚀 Iniciando instalación...${NC}"
-echo ""
 
 # Paso 1: Sistema base
 echo -e "${YELLOW}📦 Paso 1/3: Instalando sistema base ultra-mínimo...${NC}"
@@ -118,8 +96,8 @@ elif [[ $REPLY =~ ^[2]$ ]]; then
 # Script de auto-instalación post-reinicio mejorado
 
 set -e
-
-cd ~/sistema-install
+DIR="sistema-install/install"
+cd "$DIR"
 
 echo "🚀 Continuando instalación post-reinicio..."
 echo ""
@@ -135,8 +113,8 @@ fi
 
 # Ejecutar X11 y bspwm con script optimizado
 echo "🖥️ Configurando X11 y bspwm..."
-chmod +x install/02-x11.sh
-sudo ./install/02-x11.sh
+chmod +x 02-x11-bspwm
+sudo ./02-x11-bspwm.sh
 
 if [ $? -ne 0 ]; then
     echo "❌ Error en la configuración de X11 y bspwm"
@@ -155,8 +133,8 @@ echo ""
 
 if [[ $REPLY =~ ^[Ss]$ ]]; then
     echo "🛠️ Instalando herramientas esenciales..."
-    chmod +x install/03-tools.sh
-    sudo ./install/03-tools.sh
+    chmod +x 03-tools.sh
+    sudo ./03-tools.sh
     
     if [ $? -ne 0 ]; then
         echo "❌ Error en la instalación de herramientas"

@@ -1,10 +1,6 @@
 #!/bin/sh
 # Sin compositor ni extras
 xset r rate 300 50        # Teclado rápido
-xset s off -dpms         # Sin screensaver
-xsetroot -solid black    # Fondo negro (menos memoria que imagen)
 
-# Sin picom ni efectos
-# Sin xrandr automático (configurar manual si necesario)
-
+sxhkd &
 exec bspwm

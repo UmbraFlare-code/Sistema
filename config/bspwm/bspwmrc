@@ -1,0 +1,21 @@
+#!/bin/sh
+# bspwmrc - Configuración simple y minimal de bspwm
+
+# Escritorios
+bspc monitor -d I II III IV V
+
+# Ventanas
+bspc config border_width 0
+bspc config window_gap 2
+bspc config split_ratio 0.50
+bspc config borderless_monocle true
+bspc config gapless_monocle true
+
+# Focus
+bspc config focus_follows_pointer true
+
+# Iniciar sxhkd (hotkeys)
+pgrep -x sxhkd > /dev/null || sxhkd &
+
+# Escritorio inicial
+bspc desktop -f I
